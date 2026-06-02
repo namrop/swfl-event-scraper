@@ -1,0 +1,254 @@
+from __future__ import annotations
+
+from datetime import datetime
+import json
+import re
+from typing import Any
+from urllib.parse import unquote, urljoin
+
+from bs4 import BeautifulSoup
+from dateutil import parser as date_parser
+
+from .models import Event
+
+DASH_RE = re.compile(r"\s*[\u2013\u2014\u2009-]+\s*")
+SPACE_RE = re.compile(r"\s+")
+
+
+def clean_text(value: str | None) -> str:
+    if not value:
+        return ""
+    return SPACE_RE.sub(" ", value.replace("\xa0", " ")).strip()
+
+
+def html_to_text(value: str | None) -> str | None:
+    if not value:
+        return None
+    decoded = unquote(value)
+    soup = BeautifulSoup(decoded, "html.parser")
+    return clean_text(soup.get_text(" ")) or None
+
+
+def parse_first_datetime(date_text: str, time_text: str | None = None) -> str | None:
+    text = clean_text(date_text)
+    if time_text:
+        first_time = DASH_RE.split(clean_text(time_text))[0]
+        text = f"{text} {first_time}"
+    # LibraryMarket commonly repeats weekday names; dateutil tolerates them once,
+    # but removing trailing weekdays makes parsing less brittle.
+    text = re.sub(r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b", "", text, flags=re.I)
+    try:
+        dt = date_parser.parse(text, fuzzy=True)
+    except (ValueError, OverflowError):
+        return None
+    return dt.replace(second=0, microsecond=0).isoformat(timespec="minutes")
+
+
+def parse_capecoral_revize_events(payload: str | list[dict[str, Any]], source_url: str) -> list[Event]:
+    if isinstance(payload, str):
+        data = json.loads(payload)
+    else:
+        data = payload
+
+    events: list[Event] = []
+    for item in data:
+        title = clean_text(item.get("title"))
+        start = clean_text(item.get("start"))
+        if not title or not start:
+            continue
+        event_url = clean_text(item.get("url")) or source_url
+        events.append(
+            Event(
+                title=title,
+                raw_title=title,
+                start_datetime=start,
+                end_datetime=clean_text(item.get("end")) or None,
+                location=clean_text(item.get("location")) or None,
+                source_url=event_url,
+                source_name="Cape Coral City Calendar",
+                category=clean_text(item.get("primary_calendar_name")) or None,
+                description=html_to_text(item.get("desc")),
+                source_event_id=clean_text(str(item.get("id") or item.get("rid") or "")) or None,
+                interest_flags=["civic"] if item.get("primary_calendar_name") else [],
+            )
+        )
+    return events
+
+
+def parse_librarymarket_events(html: str, source_url: str) -> list[Event]:
+    soup = BeautifulSoup(html, "html.parser")
+    articles = soup.select("article.node--type-lc-event, article.lc-event, article[class*='lc-event']")
+    events: list[Event] = []
+    for article in articles:
+        title_link = article.select_one(".lc-event__title a, h2 a, h3 a, a[href*='/event/']")
+        title = clean_text(title_link.get_text(" ") if title_link else None)
+        href = title_link.get("href") if title_link else None
+        date_el = article.select_one(".lc-event__date, .lc-event__month-summary, time")
+        time_el = article.select_one(".lc-event-info-item--time, .lc-event__time, time")
+        date_text = clean_text(date_el.get_text(" ") if date_el else "")
+        time_text = clean_text(time_el.get_text(" ") if time_el else "")
+        article_text = clean_text(article.get_text(" "))
+        if not re.search(r"\b\d{4}\b|\b\d{1,2}/\d{1,2}/\d{4}\b", date_text):
+            # In LibraryMarket's upcoming-card layout, `.lc-event__date` can be
+            # just the time range; the month/day/year lives in the surrounding
+            # card text before the title, e.g. "Jun 2 2026 Tue Title 5:30pm".
+            date_match = re.search(
+                r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+"
+                r"(\d{1,2})(?:\s*-\s*\d{1,2})?\s+(\d{4})\b",
+                article_text,
+                flags=re.I,
+            )
+            if date_match:
+                date_text = f"{date_match.group(1)} {date_match.group(2)} {date_match.group(3)}"
+        start = parse_first_datetime(date_text, None if "@" in date_text else time_text)
+        if not title or not start:
+            continue
+
+        branch = clean_text((article.select_one(".lc-event__branch") or article.find(string=re.compile("Library Branch:")) or "").get_text(" ") if hasattr((article.select_one(".lc-event__branch") or ""), "get_text") else "")
+        if not branch:
+            text = clean_text(article.get_text(" "))
+            match = re.search(r"Library Branch:\s*(.+?)(?:\s+Room:|\s+Age Group:|\s+Program Type:|$)", text)
+            branch = clean_text(match.group(1)) if match else ""
+        branch = re.sub(r"^Library Branch:\s*", "", branch).strip() or None
+
+        category = clean_text((article.select_one(".lc-event__program-types") or "").get_text(" ") if article.select_one(".lc-event__program-types") else "")
+        if not category:
+            text = clean_text(article.get_text(" "))
+            match = re.search(r"Program Type:\s*(.+?)(?:\s+Details:|\s+Brief Description|$)", text)
+            category = clean_text(match.group(1)) if match else ""
+        category = re.sub(r"^Program Type:\s*", "", category).strip() or None
+
+        body = article.select_one(".lc-event__body, .field--name-body")
+        events.append(
+            Event(
+                title=title,
+                raw_title=title,
+                start_datetime=start,
+                location=branch,
+                source_url=urljoin(source_url, href) if href else source_url,
+                source_name="Lee County Library System Events",
+                category=category,
+                description=clean_text(body.get_text(" ")) if body else None,
+                source_event_id=(href.rsplit("-", 1)[-1] if href and "-" in href else href),
+                interest_flags=["library", "civic"],
+            )
+        )
+    return events
+
+
+def parse_fort_myers_civicengage_events(html: str, source_url: str) -> list[Event]:
+    soup = BeautifulSoup(html, "html.parser")
+    event_blocks = soup.select('[itemscope][itemtype*="schema.org/Event"]')
+    events: list[Event] = []
+    for block in event_blocks:
+        name_el = block.select_one('[itemprop="name"]')
+        start_el = block.select_one('[itemprop="startDate"]')
+        title = clean_text(name_el.get_text(" ") if name_el else None)
+        start = clean_text(start_el.get_text(" ") if start_el else None)
+        if not title or not start:
+            continue
+        parent = block.find_parent("li") or block.parent
+        link = parent.find("a", href=True) if parent else None
+        desc_el = block.select_one('[itemprop="description"]')
+        loc_scope = block.select_one('[itemprop="location"]')
+        loc_name = loc_scope.select_one('[itemprop="name"]') if loc_scope else None
+        events.append(
+            Event(
+                title=title,
+                raw_title=title,
+                start_datetime=start,
+                location=clean_text(loc_name.get_text(" ") if loc_name else None) or None,
+                source_url=urljoin(source_url, link.get("href")) if link else source_url,
+                source_name="Fort Myers CivicEngage Calendar",
+                category="City calendar",
+                description=clean_text(desc_el.get_text(" ") if desc_el else None) or None,
+                source_event_id=(re.search(r"EID=(\d+)", link.get("href", "")).group(1) if link and re.search(r"EID=(\d+)", link.get("href", "")) else None),
+                interest_flags=["civic"],
+            )
+        )
+    return events
+
+
+def parse_leegov_parks_events(payload: str | dict[str, Any], source_url: str) -> list[Event]:
+    if isinstance(payload, str):
+        data = json.loads(payload)
+    else:
+        data = payload
+
+    events: list[Event] = []
+    seen: set[str] = set()
+    for week in data.get("weeks", []):
+        for day in week.get("days", []):
+            for item in day.get("items", []):
+                title = clean_text(item.get("title"))
+                item_id = clean_text(item.get("itemID"))
+                if not title or not item_id or item_id in seen:
+                    continue
+                seen.add(item_id)
+                date_text = clean_text(item.get("dateString"))
+                time_text = clean_text(item.get("time"))
+                # For multi-day strings, use the first date as the start.
+                if " - " in date_text:
+                    date_text = date_text.split(" - ", 1)[0]
+                start = parse_first_datetime(
+                    date_text,
+                    None if re.search(r"\b(?:am|pm)\b|@", date_text, flags=re.I) else time_text,
+                )
+                if not start:
+                    continue
+                events.append(
+                    Event(
+                        title=title,
+                        raw_title=title,
+                        start_datetime=start,
+                        location=clean_text(item.get("ldepartTag")) or None,
+                        source_url=f"{source_url.rstrip('/')}/event?e={item_id}",
+                        source_name="Lee County Parks & Recreation Events",
+                        category=clean_text(item.get("departTag")) or None,
+                        description=clean_text(item.get("Description")) or None,
+                        source_event_id=item_id,
+                        interest_flags=["parks", "civic"],
+                    )
+                )
+    return events
+
+
+def parse_static_special_event_links(html: str, source_url: str) -> list[Event]:
+    """Return annual/special-event links as undated civic leads.
+
+    These are not inserted into the dated SQLite event table by default, but the
+    function gives the CLI a way to report source health and future adapter work.
+    """
+    return []
+
+
+def parse_generic_jsonld_events(html: str, source_url: str, source_name: str = "") -> list[Event]:
+    soup = BeautifulSoup(html, "html.parser")
+    events: list[Event] = []
+    for script in soup.select('script[type="application/ld+json"]'):
+        try:
+            data = json.loads(script.string or "")
+        except json.JSONDecodeError:
+            continue
+        items = data if isinstance(data, list) else [data]
+        for item in items:
+            if item.get("@type") != "Event":
+                continue
+            title = clean_text(item.get("name"))
+            start = clean_text(item.get("startDate"))
+            if not title or not start:
+                continue
+            location = item.get("location")
+            loc = location.get("name") if isinstance(location, dict) else None
+            events.append(
+                Event(
+                    title=title,
+                    start_datetime=start,
+                    location=clean_text(loc) or None,
+                    source_url=clean_text(item.get("url")) or source_url,
+                    source_name=source_name,
+                    category="Event",
+                    description=clean_text(item.get("description")) or None,
+                )
+            )
+    return events
