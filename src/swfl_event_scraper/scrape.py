@@ -10,6 +10,7 @@ import requests
 from .models import Event
 from .parsers import (
     parse_capecoral_revize_events,
+    parse_capecoral_webtrac_reader_markdown,
     parse_fort_myers_civicengage_events,
     parse_generic_jsonld_events,
     parse_leegov_parks_events,
@@ -25,6 +26,10 @@ def capecoral_revize_data_url(public_url: str) -> str:
         "https://www.capecoral.gov/_assets_/plugins/revizeCalendar/calendar_data_handler.php"
         "?webspace=capecoralfl&relative_revize_url=//cms6.revize.com&protocol=https:"
     )
+
+
+def capecoral_webtrac_reader_url(public_url: str) -> str:
+    return "https://r.jina.ai/http://flcapecoralweb.myvscloud.com/webtrac/web/search.html?display=Calendar&module=Event"
 
 
 def fetch_text(url: str) -> str:
@@ -66,6 +71,12 @@ def scrape_source(source: Source) -> tuple[list[Event], str | None]:
         if source.parser == "capecoral_revize":
             payload = fetch_text(capecoral_revize_data_url(source.url))
             events = parse_capecoral_revize_events(payload, source_url=source.url)
+        elif source.parser == "capecoral_webtrac_reader":
+            now = datetime.now()
+            markdown = fetch_text(capecoral_webtrac_reader_url(source.url))
+            if "Target URL returned error 403" in markdown or "Attention Required! | Cloudflare" in markdown:
+                return [], "reader fallback reached Cloudflare block"
+            events = parse_capecoral_webtrac_reader_markdown(markdown, year=now.year, month=now.month)
         elif source.parser == "librarymarket":
             html = fetch_text(source.url)
             events = parse_librarymarket_events(html, source_url=source.url)

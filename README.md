@@ -11,13 +11,13 @@ with Eventbrite treated as only one optional source.
 Working request-based adapters:
 
 - Cape Coral official city Revize calendar (`capecoral.gov/calendar.php`) — Events + Public Meetings via the Revize JSON data handler.
+- Cape Coral Parks WebTrac (`myvscloud.com`) — direct requests hit Cloudflare, so v0 uses `r.jina.ai` as a read-only public text-reader fallback for the public calendar page. This currently yields the full visible month.
 - Lee County Parks & Recreation (`leegov.com/parks/events`) — SharePoint CalendarWS endpoint, including parks, guided walks, sports tournaments, and Conservation 20/20 meetings.
 - Lee County Library System (`leelibrary.librarymarket.com/events/upcoming`) — LibraryMarket upcoming-event cards.
 - Fort Myers official CivicEngage calendar (`fortmyers.gov/calendar.aspx`) — schema.org microdata in event and meeting calendar pages.
 
 Tracked but pending adapters:
 
-- Cape Coral Parks WebTrac event calendar — official Parks & Rec calendar, currently Cloudflare-blocked for plain HTTP requests; needs browser adapter or endpoint discovery.
 - Cape Coral Special Events hub — annual-event landing pages; needs event-date extraction per linked event site.
 - Eventbrite — optional ticketed source, intentionally not the center of coverage.
 

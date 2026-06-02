@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 import json
 import re
 from typing import Any
-from urllib.parse import unquote, urljoin
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
@@ -210,6 +210,78 @@ def parse_leegov_parks_events(payload: str | dict[str, Any], source_url: str) ->
                         interest_flags=["parks", "civic"],
                     )
                 )
+    return events
+
+
+WEBTRAC_READER_ITEM_RE = re.compile(
+    r"\*\s+\[(?P<label>.*?)\]\((?P<url>https?://flcapecoralweb\.myvscloud\.com/[^)]*)\)",
+    flags=re.S,
+)
+WEBTRAC_LABEL_TIME_RE = re.compile(
+    r"^(?P<title>.*?)\s+(?P<start>\d{1,2}:\d{2}\s*[ap]m)\s*-\s*(?P<end>\d{1,2}:\d{2}\s*[ap]m)$",
+    flags=re.I | re.S,
+)
+
+
+def parse_capecoral_webtrac_reader_markdown(
+    markdown: str,
+    year: int,
+    month: int,
+    start_day: int = 1,
+) -> list[Event]:
+    """Parse Jina Reader markdown for Cape Coral WebTrac's calendar view.
+
+    The WebTrac calendar itself is Cloudflare-protected for ordinary scraper
+    clients. Jina's reader can fetch the public calendar page but emits a flat
+    ordered bullet list without day headers. WebTrac renders events in calendar
+    order and sorted by time within each day, so date boundaries are recoverable
+    when the start time rolls back from evening/afternoon to morning. Current
+    Cape Coral calendar pages have empty Sundays; when a rollover lands on a
+    Sunday, advance to Monday so post-Saturday events stay aligned.
+    """
+    current_date = date(year, month, start_day)
+    previous_start = None
+    events: list[Event] = []
+    seen: set[tuple[str, str]] = set()
+
+    for match in WEBTRAC_READER_ITEM_RE.finditer(markdown):
+        label = clean_text(match.group("label"))
+        url = match.group("url")
+        label_match = WEBTRAC_LABEL_TIME_RE.match(label)
+        if not label_match:
+            continue
+        title = clean_text(label_match.group("title"))
+        start_time = date_parser.parse(label_match.group("start")).time()
+        end_time = date_parser.parse(label_match.group("end")).time()
+
+        if previous_start is not None and start_time < previous_start:
+            current_date += timedelta(days=1)
+            if current_date.weekday() == 6:  # Sunday; current Cape WebTrac month has no Sunday entries.
+                current_date += timedelta(days=1)
+        previous_start = start_time
+
+        source_event_id = parse_qs(urlparse(url).query).get("FMID", [None])[0]
+        clean_url = url.split("&_csrf_token=", 1)[0]
+        key = (source_event_id or clean_url, f"{current_date.isoformat()}T{start_time.isoformat(timespec='minutes')}")
+        if key in seen:
+            continue
+        seen.add(key)
+
+        start_dt = datetime.combine(current_date, start_time).isoformat(timespec="minutes")
+        end_dt = datetime.combine(current_date, end_time).isoformat(timespec="minutes")
+        events.append(
+            Event(
+                title=title,
+                raw_title=label,
+                start_datetime=start_dt,
+                end_datetime=end_dt,
+                source_url=clean_url,
+                source_name="Cape Coral Parks WebTrac Events",
+                category="Parks & Recreation",
+                source_event_id=source_event_id,
+                interest_flags=["parks", "civic"],
+            )
+        )
     return events
 
 

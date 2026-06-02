@@ -33,8 +33,8 @@ SOURCES: tuple[Source, ...] = (
         name="Cape Coral Parks WebTrac Events",
         url="https://web1.myvscloud.com/wbwsc/flcapecoralwt.wsc/search.html?display=Calendar&module=Event",
         kind=SourceKind.CIVIC_GOV,
-        parser="unsupported_webtrac",
-        notes="Official Parks & Recreation activity/event calendar; Cloudflare blocks plain requests, keep as first-class source for browser/manual adapter.",
+        parser="capecoral_webtrac_reader",
+        notes="Official Parks & Recreation activity/event calendar. Direct requests hit Cloudflare; v0 uses a public reader fallback for the read-only calendar page.",
     ),
     Source(
         name="Cape Coral Special Events",
