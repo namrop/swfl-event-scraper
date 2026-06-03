@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from html import unescape
 import json
 import re
 from typing import Any
@@ -18,7 +19,7 @@ SPACE_RE = re.compile(r"\s+")
 def clean_text(value: str | None) -> str:
     if not value:
         return ""
-    return SPACE_RE.sub(" ", value.replace("\xa0", " ")).strip()
+    return SPACE_RE.sub(" ", unescape(value).replace("\xa0", " ")).strip()
 
 
 def html_to_text(value: str | None) -> str | None:
@@ -133,6 +134,48 @@ def parse_librarymarket_events(html: str, source_url: str) -> list[Event]:
                 interest_flags=["library", "civic"],
             )
         )
+    return events
+
+
+def parse_tribe_events_payload(payload: str | dict[str, Any], source_url: str, source_name: str) -> list[Event]:
+    if isinstance(payload, str):
+        data = json.loads(payload)
+    else:
+        data = payload
+
+    events: list[Event] = []
+    for item in data.get("events", []):
+        title = clean_text(item.get("title"))
+        start = clean_text(item.get("start_date"))
+        if not title or not start:
+            continue
+
+        venue = item.get("venue") or {}
+        if isinstance(venue, list):
+            venue = venue[0] if venue else {}
+        venue_name = clean_text(venue.get("venue") or venue.get("name")) if isinstance(venue, dict) else ""
+        venue_city = clean_text(venue.get("city")) if isinstance(venue, dict) else ""
+        location = ", ".join(part for part in [venue_name, venue_city] if part) or None
+        categories = item.get("categories") or []
+        category = ", ".join(clean_text(cat.get("name")) for cat in categories if isinstance(cat, dict) and cat.get("name")) or None
+        cost = clean_text(item.get("cost"))
+
+        event = Event(
+            title=title,
+            raw_title=title,
+            start_datetime=start.replace(" ", "T", 1),
+            end_datetime=(clean_text(item.get("end_date")).replace(" ", "T", 1) if item.get("end_date") else None),
+            location=location,
+            source_url=clean_text(item.get("url")) or source_url,
+            source_name=source_name,
+            category=category,
+            description=html_to_text(item.get("description")),
+            source_event_id=clean_text(str(item.get("id") or "")) or None,
+            interest_flags=["civic"],
+            price_text=cost or None,
+        )
+        event.apply_access_metadata(overwrite_unknown=True)
+        events.append(event)
     return events
 
 
@@ -318,6 +361,68 @@ def parse_static_special_event_links(html: str, source_url: str) -> list[Event]:
     function gives the CLI a way to report source health and future adapter work.
     """
     return []
+
+
+METROLAGOONS_TIME_RE = re.compile(r"\((?P<time>\d{1,2}(?::\d{2})?\s*[ap]m(?:\s*-\s*\d{1,2}(?::\d{2})?\s*[ap]m)?)\)", re.I)
+
+
+def parse_metrolagoons_events_html(html: str, source_url: str, lagoon_name: str) -> list[Event]:
+    soup = BeautifulSoup(html, "html.parser")
+    events: list[Event] = []
+    for block in soup.select(".single-event"):
+        title_el = block.select_one(".single-event__title")
+        title = clean_text(title_el.get_text(" ") if title_el else None)
+        date_text = clean_text(block.get("data-date"))
+        if not title or not date_text:
+            continue
+        time_match = METROLAGOONS_TIME_RE.search(title)
+        start = parse_first_datetime(date_text, time_match.group("time") if time_match else None)
+        if not start:
+            continue
+        event_type = clean_text(block.get("data-type")).replace("_", " ") or None
+        caption = clean_text((block.select_one(".single-event__caption") or "").get_text(" ") if block.select_one(".single-event__caption") else "") or event_type
+        paragraphs = [clean_text(p.get_text(" ")) for p in block.select("p")]
+        description = " ".join(part for part in paragraphs if part) or None
+        source_event_id = clean_text((block.get("id") or "").replace("event-", "")) or None
+        price_text = None
+        payment_required = None
+        registration_required = None
+        access_type = None
+        joinability = None
+        normalized_type = (block.get("data-type") or "").lower()
+        caption_text = (caption or "").lower()
+        if "ticketed" in normalized_type or "ticketed" in caption_text:
+            price_text = "Ticketed event"
+            payment_required = True
+            registration_required = True
+            access_type = "registration_required"
+            joinability = "registration_needed"
+        elif "included" in normalized_type or "included" in caption_text:
+            price_text = "Included with day ticket"
+            payment_required = True
+        elif "resident" in normalized_type or "resident" in caption_text:
+            price_text = "Resident member event"
+
+        event = Event(
+            title=title,
+            raw_title=title,
+            start_datetime=start,
+            location=f"{lagoon_name}, North Fort Myers",
+            source_url=source_url,
+            source_name=f"MetroLagoons {lagoon_name} Events",
+            category=caption or "Lagoon event",
+            description=description,
+            source_event_id=source_event_id,
+            interest_flags=["venue", "north_fort_myers"],
+            price_text=price_text,
+            payment_required=payment_required,
+            registration_required=registration_required,
+            access_type=access_type,
+            joinability=joinability,
+        )
+        event.apply_access_metadata(overwrite_unknown=True)
+        events.append(event)
+    return events
 
 
 def parse_generic_jsonld_events(html: str, source_url: str, source_name: str = "") -> list[Event]:

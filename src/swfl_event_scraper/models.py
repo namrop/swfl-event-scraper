@@ -26,7 +26,7 @@ REGISTRATION_RE = re.compile(
     flags=re.I,
 )
 PUBLIC_MEETING_RE = re.compile(
-    r"\b(?:public\s+meeting|city\s+council|board\s+meeting|committee\s+meeting|commission\s+meeting|advisory\s+group\s+meeting|town\s+hall|public\s+workshop|public\s+hearing|bid\s+opening|negotiations\s+meeting|information\s+session)\b",
+    r"\b(?:public\s+meeting|council\s+meeting|city\s+council|board\s+meeting|committee\s+meeting|commission\s+meeting|advisory\s+group\s+meeting|town\s+hall|public\s+workshop|public\s+hearing|bid\s+opening|negotiations\s+meeting|information\s+session)\b",
     flags=re.I,
 )
 PUBLIC_DROP_IN_RE = re.compile(r"\b(?:farmers\s+market|art\s+walk|music\s+walk)\b", flags=re.I)

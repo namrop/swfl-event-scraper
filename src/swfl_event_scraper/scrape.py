@@ -6,6 +6,7 @@ from typing import Iterable
 from urllib.parse import quote
 
 import requests
+import urllib3
 
 from .models import Event
 from .parsers import (
@@ -16,6 +17,8 @@ from .parsers import (
     parse_generic_jsonld_events,
     parse_leegov_parks_events,
     parse_librarymarket_events,
+    parse_metrolagoons_events_html,
+    parse_tribe_events_payload,
 )
 from .sources import Source
 
@@ -41,6 +44,59 @@ def fetch_text(url: str) -> str:
     )
     response.raise_for_status()
     return response.text
+
+
+def fetch_json_lenient(url: str) -> dict[str, object]:
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json,text/html;q=0.8,*/*;q=0.5"},
+            timeout=30,
+        )
+    except requests.exceptions.SSLError:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        response = requests.get(
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json,text/html;q=0.8,*/*;q=0.5"},
+            timeout=30,
+            verify=False,
+        )
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_tribe_events(source_url: str) -> dict[str, object]:
+    now = datetime.now()
+    api_url = (
+        f"{source_url.rstrip('/')}/wp-json/tribe/events/v1/events"
+        f"?per_page=50&start_date={now.date().isoformat()}&end_date={now.year + 1}-12-31"
+    )
+    events: list[dict[str, object]] = []
+    next_url: str | None = api_url
+    total = 0
+    total_pages = 0
+    while next_url:
+        payload = fetch_json_lenient(next_url)
+        events.extend(payload.get("events", []))
+        total = int(payload.get("total") or len(events))
+        total_pages = int(payload.get("total_pages") or total_pages or 1)
+        next_url = payload.get("next_rest_url") if isinstance(payload.get("next_rest_url"), str) else None
+    return {"events": events, "total": total, "total_pages": total_pages}
+
+
+def fetch_metrolagoons_month(month_label: str, lagoon_name: str) -> str:
+    url = (
+        "https://www.metrolagoons.com/ajax/functions.php"
+        f"?operation=eventsCalendar&month={quote(month_label)}&tag={quote(lagoon_name)}&category="
+    )
+    payload = fetch_json_lenient(url)
+    return str(payload.get("html") or "")
+
+
+def fetch_brightwater_lagoon_events() -> str:
+    now = datetime.now()
+    month_label = now.strftime("%b %Y")
+    return fetch_metrolagoons_month(month_label, "Brightwater Lagoon")
 
 
 def fetch_leegov_parks_month(year: int, month: int) -> dict[str, object]:
@@ -97,7 +153,13 @@ def scrape_source(source: Source) -> tuple[list[Event], str | None]:
             now = datetime.now()
             payload = fetch_leegov_parks_month(now.year, now.month)
             events = parse_leegov_parks_events(payload, source_url=source.url)
-        elif source.parser in {"unsupported_webtrac", "static_links", "eventbrite_optional"}:
+        elif source.parser == "tribe_events_api":
+            payload = fetch_tribe_events(source.url)
+            events = parse_tribe_events_payload(payload, source_url=source.url, source_name=source.name)
+        elif source.parser == "metrolagoons_brightwater":
+            html = fetch_brightwater_lagoon_events()
+            events = parse_metrolagoons_events_html(html, source_url=source.url, lagoon_name="Brightwater Lagoon")
+        elif source.parser in {"unsupported_webtrac", "static_links", "eventbrite_optional", "civiclive_calendar_pending"}:
             # Source is intentionally tracked in the civic source map, but the v0
             # request-based adapter either needs browser rendering, a discovered
             # private endpoint, or an authenticated/API path before insertion.

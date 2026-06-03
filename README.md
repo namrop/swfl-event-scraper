@@ -15,10 +15,13 @@ Working request-based adapters:
 - Lee County Parks & Recreation (`leegov.com/parks/events`) — SharePoint CalendarWS endpoint, including parks, guided walks, sports tournaments, and Conservation 20/20 meetings.
 - Lee County Library System (`leelibrary.librarymarket.com/events/upcoming`) — LibraryMarket upcoming-event cards.
 - Fort Myers official CivicEngage calendar (`fortmyers.gov/calendar.aspx`) — schema.org microdata in event and meeting calendar pages.
+- Village of Estero events (`estero-fl.gov/wp-json/tribe/events/v1`) — official WordPress/The Events Calendar API for village meetings, workshops, closures, and civic/special events.
+- MetroLagoons Brightwater Lagoon (`metrolagoons.com/events?lagoon=brightwater`) — North Fort Myers venue events via the public AJAX event-calendar endpoint; events can be included-with-day-ticket, ticketed, or resident-member-only.
 
 Tracked but pending adapters:
 
 - Cape Coral Special Events hub — annual-event landing pages; needs event-date extraction per linked event site.
+- Bonita Springs City Calendar and City Approved Events — official CivicLive/React calendar surfaces are tracked, but still need a stable request adapter for the portlet/export flow.
 - Eventbrite — optional ticketed source, intentionally not the center of coverage.
 
 ## Run
