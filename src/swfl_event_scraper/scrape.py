@@ -9,6 +9,7 @@ import requests
 
 from .models import Event
 from .parsers import (
+    enrich_event_from_civicengage_detail,
     parse_capecoral_revize_events,
     parse_capecoral_webtrac_reader_markdown,
     parse_fort_myers_civicengage_events,
@@ -83,6 +84,12 @@ def scrape_source(source: Source) -> tuple[list[Event], str | None]:
         elif source.parser == "fort_myers_civicengage":
             html = fetch_text(source.url)
             events = parse_fort_myers_civicengage_events(html, source_url=source.url)
+            for event in events:
+                try:
+                    detail_html = fetch_text(event.source_url)
+                except Exception:
+                    continue
+                enrich_event_from_civicengage_detail(event, detail_html)
         elif source.parser == "generic_jsonld":
             html = fetch_text(source.url)
             events = parse_generic_jsonld_events(html, source_url=source.url, source_name=source.name)

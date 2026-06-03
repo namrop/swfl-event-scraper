@@ -34,8 +34,8 @@ The event table includes explicit triage fields for the practical planning layer
 - `price_text`, `price_amount_min`, `price_amount_max`, `price_currency`
 - `payment_required`
 - `registration_required`
-- `access_type` (`drop_in`, `registration_required`, `class_series`, `unknown`)
-- `joinability` (`drop_in_ok`, `registration_needed`, `verify_mid_session_joinability`, `unknown`)
+- `access_type` (`drop_in`, `public_meeting`, `registration_required`, `class_series`, `listed_event_no_registration`, `unknown`)
+- `joinability` (`drop_in_ok`, `public_attendance_ok`, `registration_needed`, `verify_mid_session_joinability`, `registration_not_required`, `unknown`)
 
 These are conservative metadata fields. If a source does not expose exact price or enrollment state, the scraper preserves unknowns and flags likely class-series items for manual/open-registration verification instead of treating them as drop-in events.
 

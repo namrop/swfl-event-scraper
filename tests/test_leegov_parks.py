@@ -21,6 +21,7 @@ def test_parse_leegov_parks_calendarws_payload():
                                 "ldepartTag": "Parks - Lakes Park",
                                 "departTag": "Guided Walks/Tours",
                                 "Description": "Monthly birding tour.",
+                                "Registration": False,
                             }
                         ],
                     }
@@ -37,3 +38,6 @@ def test_parse_leegov_parks_calendarws_payload():
     assert events[0].location == "Parks - Lakes Park"
     assert events[0].category == "Guided Walks/Tours"
     assert events[0].source_url.endswith("event?e=7909E7910E876.0.2026-06-06T12%3A00%3A00Z")
+    assert events[0].registration_required is False
+    assert events[0].access_type == "listed_event_no_registration"
+    assert events[0].joinability == "registration_not_required"

@@ -169,6 +169,19 @@ def parse_fort_myers_civicengage_events(html: str, source_url: str) -> list[Even
     return events
 
 
+def enrich_event_from_civicengage_detail(event: Event, html: str) -> Event:
+    soup = BeautifulSoup(html, "html.parser")
+    desc_el = soup.select_one('[itemscope][itemtype*="schema.org/Event"] [itemprop="description"]')
+    if desc_el:
+        event.description = clean_text(desc_el.get_text(" ")) or event.description
+    loc_scope = soup.select_one('[itemscope][itemtype*="schema.org/Event"] [itemprop="location"]')
+    if loc_scope and not event.location:
+        address = clean_text(loc_scope.get_text(" "))
+        event.location = address or event.location
+    event.apply_access_metadata(overwrite_unknown=True)
+    return event
+
+
 def parse_leegov_parks_events(payload: str | dict[str, Any], source_url: str) -> list[Event]:
     if isinstance(payload, str):
         data = json.loads(payload)
@@ -196,6 +209,16 @@ def parse_leegov_parks_events(payload: str | dict[str, Any], source_url: str) ->
                 )
                 if not start:
                     continue
+                registration_value = item.get("Registration")
+                registration_required = registration_value if isinstance(registration_value, bool) else None
+                access_type = None
+                joinability = None
+                if registration_required is False:
+                    access_type = "listed_event_no_registration"
+                    joinability = "registration_not_required"
+                elif registration_required is True:
+                    access_type = "registration_required"
+                    joinability = "registration_needed"
                 events.append(
                     Event(
                         title=title,
@@ -208,6 +231,9 @@ def parse_leegov_parks_events(payload: str | dict[str, Any], source_url: str) ->
                         description=clean_text(item.get("Description")) or None,
                         source_event_id=item_id,
                         interest_flags=["parks", "civic"],
+                        registration_required=registration_required,
+                        access_type=access_type,
+                        joinability=joinability,
                     )
                 )
     return events
