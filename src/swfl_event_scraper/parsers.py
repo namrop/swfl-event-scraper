@@ -6,6 +6,7 @@ import json
 import re
 from typing import Any
 from urllib.parse import parse_qs, unquote, urljoin, urlparse
+from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
@@ -19,7 +20,8 @@ SPACE_RE = re.compile(r"\s+")
 def clean_text(value: str | None) -> str:
     if not value:
         return ""
-    return SPACE_RE.sub(" ", unescape(value).replace("\xa0", " ")).strip()
+    text = SPACE_RE.sub(" ", unescape(value).replace("\xa0", " ")).strip()
+    return re.sub(r"\s+([.,;:!?])", r"\1", text)
 
 
 def html_to_text(value: str | None) -> str | None:
@@ -173,6 +175,117 @@ def parse_tribe_events_payload(payload: str | dict[str, Any], source_url: str, s
             source_event_id=clean_text(str(item.get("id") or "")) or None,
             interest_flags=["civic"],
             price_text=cost or None,
+        )
+        event.apply_access_metadata(overwrite_unknown=True)
+        events.append(event)
+    return events
+
+
+def parse_fgcu_25live_events(payload: str | list[dict[str, Any]], source_url: str, source_name: str) -> list[Event]:
+    if isinstance(payload, str):
+        data = json.loads(payload)
+    else:
+        data = payload
+
+    events: list[Event] = []
+    for item in data:
+        title = clean_text(item.get("title"))
+        start = clean_text(item.get("startDateTime"))
+        if not title or not start:
+            continue
+        if item.get("canceled") and not title.lower().startswith("canceled"):
+            title = f"CANCELED - {title}"
+
+        custom_fields = item.get("customFields") or []
+        custom_by_label: dict[str, str] = {}
+        for field in custom_fields:
+            if not isinstance(field, dict):
+                continue
+            label = clean_text(field.get("label"))
+            value = html_to_text(field.get("value")) or clean_text(field.get("value"))
+            if label and value:
+                custom_by_label[label.lower()] = value
+
+        description_parts = [html_to_text(item.get("description"))]
+        if custom_by_label.get("registration"):
+            description_parts.append(f"Registration: {custom_by_label['registration']}")
+        description = " ".join(part for part in description_parts if part) or None
+
+        category_parts = [clean_text(item.get("categoryCalendar")) or clean_text(item.get("template"))]
+        organization = custom_by_label.get("organization")
+        if organization:
+            category_parts.append(organization.title())
+        category = ", ".join(part for part in category_parts if part) or None
+
+        payment_required = True if item.get("requiresPayment") is True else None
+        registration_required = True if item.get("openSignUp") or custom_by_label.get("registration") else None
+        event = Event(
+            title=title,
+            raw_title=clean_text(item.get("title")) or title,
+            start_datetime=start,
+            end_datetime=clean_text(item.get("endDateTime")) or None,
+            location=html_to_text(item.get("location")) or None,
+            source_url=clean_text(item.get("permaLinkUrl") or item.get("webLink")) or source_url,
+            source_name=source_name,
+            category=category,
+            description=description,
+            source_event_id=clean_text(str(item.get("eventID") or "")) or None,
+            interest_flags=["college", "fgcu"],
+            price_text="Payment required" if payment_required else None,
+            payment_required=payment_required,
+            registration_required=registration_required,
+            access_type="registration_required" if registration_required else None,
+            joinability="registration_needed" if registration_required else None,
+        )
+        event.apply_access_metadata(overwrite_unknown=True)
+        events.append(event)
+    return events
+
+
+def _presence_local_datetime(utc_value: str | None) -> str | None:
+    text = clean_text(utc_value)
+    if not text:
+        return None
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = parse_first_datetime(text)
+        return parsed.replace("+00:00", "") if parsed else None
+    return dt.astimezone(ZoneInfo("America/New_York")).replace(tzinfo=None).isoformat(timespec="seconds")
+
+
+def parse_presence_events(payload: str | list[dict[str, Any]], source_url: str, source_name: str) -> list[Event]:
+    if isinstance(payload, str):
+        data = json.loads(payload)
+    else:
+        data = payload
+
+    events: list[Event] = []
+    for item in data:
+        title = clean_text(item.get("eventName") or item.get("title"))
+        start = _presence_local_datetime(item.get("startDateTimeUtc") or item.get("start"))
+        if not title or not start:
+            continue
+
+        tags = [clean_text(tag) for tag in item.get("tags") or [] if clean_text(tag)]
+        category_parts = [clean_text(item.get("organizationName")), *tags]
+        rsvp_status = item.get("rsvpStatus")
+        registration_required = True if item.get("isRsvpLimited") or rsvp_status not in (None, -1, 2) else None
+        event = Event(
+            title=title,
+            raw_title=title,
+            start_datetime=start,
+            end_datetime=_presence_local_datetime(item.get("endDateTimeUtc") or item.get("end")),
+            location=clean_text(item.get("location")) or None,
+            source_url=urljoin(source_url, f"/event/{clean_text(item.get('uri'))}") if item.get("uri") else source_url,
+            source_name=source_name,
+            category=", ".join(part for part in category_parts if part) or None,
+            description=html_to_text(item.get("description")),
+            source_event_id=clean_text(item.get("eventNoSqlId") or item.get("uri")) or None,
+            interest_flags=["college", "fsw"],
+            registration_required=registration_required,
+            access_type="registration_required" if registration_required else None,
+            joinability="registration_needed" if registration_required else None,
         )
         event.apply_access_metadata(overwrite_unknown=True)
         events.append(event)

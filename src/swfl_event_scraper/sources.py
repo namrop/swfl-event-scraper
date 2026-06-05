@@ -8,6 +8,7 @@ class SourceKind(Enum):
     CIVIC_GOV = "civic_gov"
     LIBRARY = "library"
     VENUE = "venue"
+    COLLEGE = "college"
     AGGREGATOR = "aggregator"
     TICKETED = "ticketed"
 
@@ -91,6 +92,20 @@ SOURCES: tuple[Source, ...] = (
         kind=SourceKind.VENUE,
         parser="metrolagoons_brightwater",
         notes="Brightwater Lagoon in North Fort Myers. Uses MetroLagoons AJAX event-calendar endpoint; events may require day ticket, ticket purchase, or resident membership.",
+    ),
+    Source(
+        name="FGCU Events",
+        url="https://www.fgcu.edu/calendar/",
+        kind=SourceKind.COLLEGE,
+        parser="fgcu_25live_all_events",
+        notes="Official Florida Gulf Coast University all-events calendar. The public page embeds 25Live/CollegeNET data; scraper uses FGCU's JSON feed for the test-special-events calendar surface.",
+    ),
+    Source(
+        name="FSW Presence Events",
+        url="https://fsw.presence.io/events",
+        kind=SourceKind.COLLEGE,
+        parser="presence_events",
+        notes="Official Florida SouthWestern State College event calendar. The fsw.edu calendar redirects to Presence; scraper uses the public Presence JSON API.",
     ),
     Source(
         name="Visit Fort Myers Events",

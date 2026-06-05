@@ -17,6 +17,8 @@ Working request-based adapters:
 - Fort Myers official CivicEngage calendar (`fortmyers.gov/calendar.aspx`) — schema.org microdata in event and meeting calendar pages.
 - Village of Estero events (`estero-fl.gov/wp-json/tribe/events/v1`) — official WordPress/The Events Calendar API for village meetings, workshops, closures, and civic/special events.
 - MetroLagoons Brightwater Lagoon (`metrolagoons.com/events?lagoon=brightwater`) — North Fort Myers venue events via the public AJAX event-calendar endpoint; events can be included-with-day-ticket, ticketed, or resident-member-only.
+- FGCU Events (`fgcu.edu/calendar`) — official Florida Gulf Coast University events via the public FGCU/25Live JSON feed.
+- FSW Presence Events (`fsw.presence.io/events`) — official Florida SouthWestern State College event calendar via the public Presence JSON API.
 
 Tracked but pending adapters:
 

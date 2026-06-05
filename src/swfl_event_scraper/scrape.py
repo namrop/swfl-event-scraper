@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 from urllib.parse import quote
 
@@ -13,11 +13,13 @@ from .parsers import (
     enrich_event_from_civicengage_detail,
     parse_capecoral_revize_events,
     parse_capecoral_webtrac_reader_markdown,
+    parse_fgcu_25live_events,
     parse_fort_myers_civicengage_events,
     parse_generic_jsonld_events,
     parse_leegov_parks_events,
     parse_librarymarket_events,
     parse_metrolagoons_events_html,
+    parse_presence_events,
     parse_tribe_events_payload,
 )
 from .sources import Source
@@ -46,7 +48,7 @@ def fetch_text(url: str) -> str:
     return response.text
 
 
-def fetch_json_lenient(url: str) -> dict[str, object]:
+def fetch_json_lenient(url: str) -> object:
     try:
         response = requests.get(
             url,
@@ -77,11 +79,64 @@ def fetch_tribe_events(source_url: str) -> dict[str, object]:
     total_pages = 0
     while next_url:
         payload = fetch_json_lenient(next_url)
+        if not isinstance(payload, dict):
+            raise TypeError("Tribe Events API returned non-object payload")
         events.extend(payload.get("events", []))
         total = int(payload.get("total") or len(events))
         total_pages = int(payload.get("total_pages") or total_pages or 1)
         next_url = payload.get("next_rest_url") if isinstance(payload.get("next_rest_url"), str) else None
     return {"events": events, "total": total, "total_pages": total_pages}
+
+
+def fetch_fgcu_25live_all_events() -> list[dict[str, object]]:
+    payload = fetch_json_lenient("https://www.fgcu.edu/events/feed?calendarname=test-special-events")
+    if not isinstance(payload, list):
+        raise TypeError("FGCU 25Live feed returned non-list payload")
+    return payload
+
+
+def fetch_presence_events(source_url: str) -> list[dict[str, object]]:
+    subdomain = source_url.split("//", 1)[-1].split(".", 1)[0]
+    payload = fetch_json_lenient(f"https://api.presence.io/{subdomain}/v1/events")
+    if not isinstance(payload, list):
+        raise TypeError("Presence events API returned non-list payload")
+    return filter_presence_events_for_current_window(payload)
+
+
+def _parse_presence_utc_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def filter_presence_events_for_current_window(
+    payload: list[dict[str, object]],
+    *,
+    now_utc: str | datetime | None = None,
+) -> list[dict[str, object]]:
+    if now_utc is None:
+        now = datetime.now(timezone.utc)
+    elif isinstance(now_utc, str):
+        parsed_now = _parse_presence_utc_datetime(now_utc)
+        now = parsed_now or datetime.now(timezone.utc)
+    else:
+        now = now_utc if now_utc.tzinfo else now_utc.replace(tzinfo=timezone.utc)
+        now = now.astimezone(timezone.utc)
+
+    filtered: list[dict[str, object]] = []
+    for item in payload:
+        end = _parse_presence_utc_datetime(item.get("endDateTimeUtc") or item.get("end"))
+        start = _parse_presence_utc_datetime(item.get("startDateTimeUtc") or item.get("start"))
+        comparison = end or start
+        if comparison is None or comparison >= now:
+            filtered.append(item)
+    return filtered
 
 
 def fetch_metrolagoons_month(month_label: str, lagoon_name: str) -> str:
@@ -90,6 +145,8 @@ def fetch_metrolagoons_month(month_label: str, lagoon_name: str) -> str:
         f"?operation=eventsCalendar&month={quote(month_label)}&tag={quote(lagoon_name)}&category="
     )
     payload = fetch_json_lenient(url)
+    if not isinstance(payload, dict):
+        raise TypeError("MetroLagoons API returned non-object payload")
     return str(payload.get("html") or "")
 
 
@@ -159,6 +216,12 @@ def scrape_source(source: Source) -> tuple[list[Event], str | None]:
         elif source.parser == "metrolagoons_brightwater":
             html = fetch_brightwater_lagoon_events()
             events = parse_metrolagoons_events_html(html, source_url=source.url, lagoon_name="Brightwater Lagoon")
+        elif source.parser == "fgcu_25live_all_events":
+            payload = fetch_fgcu_25live_all_events()
+            events = parse_fgcu_25live_events(payload, source_url=source.url, source_name=source.name)
+        elif source.parser == "presence_events":
+            payload = fetch_presence_events(source.url)
+            events = parse_presence_events(payload, source_url=source.url, source_name=source.name)
         elif source.parser in {"unsupported_webtrac", "static_links", "eventbrite_optional", "civiclive_calendar_pending"}:
             # Source is intentionally tracked in the civic source map, but the v0
             # request-based adapter either needs browser rendering, a discovered
