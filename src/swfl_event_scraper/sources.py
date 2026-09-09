@@ -43,6 +43,10 @@ class Source:
     # client by fingerprint, and the fetch happens in a real browser on
     # another host; the adapter here reads the dump that lane produces.
     fetch: str = "request"
+    # Interest tags every row from this source carries by virtue of what the
+    # source IS. Kept small and obvious: a theatre stages theatre, a botanical
+    # garden is a garden. Names must exist in vocabulary/interest_tags.yaml.
+    implied_tags: tuple[str, ...] = ()
 
     def default_place(self):
         from .geo import Place
@@ -115,6 +119,7 @@ SOURCES: tuple[Source, ...] = (
         county="Lee",
         default_lat=26.6406,
         default_lon=-81.8723,
+        implied_tags=("books.library",),
     ),
     Source(
         name="Fort Myers CivicEngage Calendar",
@@ -215,6 +220,7 @@ SOURCES: tuple[Source, ...] = (
         default_lon=-81.8710,
         crawl_delay_s=2.0,
         robots_note="robots.txt permits all; no Crawl-delay declared. 2 s used anyway.",
+        implied_tags=("arts.theatre",),
     ),
     Source(
         name="Alliance for the Arts",
@@ -232,6 +238,7 @@ SOURCES: tuple[Source, ...] = (
             "as an API rather than a crawl surface, page count is capped, and the decision is written "
             "down here so it can be overruled."
         ),
+        implied_tags=("arts.museum",),
     ),
     Source(
         name="Naples Botanical Garden",
@@ -244,6 +251,7 @@ SOURCES: tuple[Source, ...] = (
         default_lon=-81.7756,
         crawl_delay_s=2.0,
         robots_note="robots.txt permits all; no Crawl-delay declared.",
+        implied_tags=("nature.gardens_estates",),
     ),
     # ------------------------------------------------------------------
     # Probed 2026-09-09 and NOT implemented. Each is tracked so the next

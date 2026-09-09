@@ -117,6 +117,7 @@ def build_candidate(
     is_spam: Any,
     source_default: Place | None,
     source_noisy: bool = False,
+    implied_tags: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     title = scrub(title) or "(untitled)"
     venue = scrub(venue)
@@ -137,6 +138,7 @@ def build_candidate(
         access=access_type,
         price_min=price_min,
         price_text=price_text,
+        implied_tags=implied_tags,
     )
 
     return {
@@ -209,10 +211,16 @@ def candidate_from_event(event, source) -> dict[str, Any]:
         is_spam=event.is_spam,
         source_default=source.default_place(),
         source_noisy=(source.kind.value == "ticketed"),
+        implied_tags=source.implied_tags,
     )
 
 
-def candidate_from_sqlite_row(row: dict[str, Any], source_defaults: dict[str, Place]) -> dict[str, Any]:
+def candidate_from_sqlite_row(
+    row: dict[str, Any],
+    source_defaults: dict[str, Place],
+    implied: dict[str, tuple[str, ...]] | None = None,
+) -> dict[str, Any]:
+    implied = implied or {}
     return build_candidate(
         title=row["title"],
         start=row["start_datetime"],
@@ -235,4 +243,5 @@ def candidate_from_sqlite_row(row: dict[str, Any], source_defaults: dict[str, Pl
         joinability=row.get("joinability"),
         is_spam=row.get("is_spam"),
         source_default=source_defaults.get(row["source_name"]),
+        implied_tags=implied.get(row["source_name"], ()),
     )

@@ -18,8 +18,35 @@
 # so alcohol-centred events are hard down-rated. That was found in the halo
 # and was absent from the lane's original brief.
 
-version: interest_tags.v1
+version: interest_tags.v1.3
 generated: 2026-09-09
+changelog:
+  - version: interest_tags.v1.3
+    at: 2026-09-09T19:55:00-04:00
+    why: >-
+      Repair. The v1.2 edit set `scope: event_text` on eco.animals_welfare by
+      accident — it shares an evidence path with civic.local_heritage_events
+      and a blind text replacement caught both, carrying a comment about the
+      Dunbar library branch onto a tag about animals. Scope removed, comment
+      removed. No other tag changed, and a re-score under v1.3 moved zero
+      rows — no event matched an animal keyword only in its venue string — so
+      the accident cost nothing but is recorded anyway, because the ledger it
+      feeds is append-only and a silent fix in the model behind it would be
+      the one kind of correction that leaves no trace.
+  - version: interest_tags.v1.2
+    at: 2026-09-09T19:40:00-04:00
+    why: >-
+      The first fill exposed two false-positive classes in the v1 regexes, both
+      from matching a word out of its grammatical role. `arts.theatre` fired on
+      the venue name "Foulds Theatre" for a gallery show, and on "musical
+      foundation" in a ukulele class. Two fixes: `arts.theatre` now has
+      `scope: event_text`, so it reads the event's own words and not the
+      building it happens to be in, and its pattern wants theatrical nouns
+      rather than the adjective "musical". The role a theatre venue used to
+      play badly is now played well by `implied_tags` on the source itself:
+      Florida Rep declares arts.theatre for every row it produces, which is
+      both more reliable than a regex over a venue string and closer to how a
+      person would reason about it.
 origin_note: 20_digital_architecture/household_newspaper/source_audit_and_adjudications_2026-09-09.md
 
 tags:
@@ -29,6 +56,9 @@ tags:
     audience: both
     weight: 2.0
     evidence: 06_halos/people/johannah_great_time_on_cayo_costa_cabbage_key_day_2026-03-28.md
+    # scope: event_text — Pine Island is also a Lee County library branch, and
+    # v1 tagged its storytimes as boat days.
+    scope: event_text
     match: '\b(boat (trip|tour|cruise|day)|cayo costa|cabbage key|pine island|bokeelia|island hop|sunset cruise|ferry)\b'
   water.beach_causeway:
     gloss: Beach and causeway days, usually with the dogs
@@ -135,7 +165,11 @@ tags:
       for the long road ahead"), which establishes musical-theatre affinity, not
       a theatregoing habit. Luis named theatres explicitly in the 18:54 ruling,
       so the tag ships at full weight and the feedback loop will settle it.
-    match: '\b(play|musical|theat(re|er)|one-act|staged reading|comedy show|improv|cabaret|drama|opening night|matinee)\b'
+    # scope: event_text reads title + description + category only. A gallery
+    # show inside a building called a Theatre is not a play, and v1 tagged
+    # dozens of them as one.
+    scope: event_text
+    match: '\b(stage play|one[- ]act|playwright|staged reading|musicals\b|the musical\b|a musical\b|musical theat\w+|broadway (show|musical|series|tour|season)|comedy show|stand[- ]?up|improv|cabaret|matinee|opening night|curtain (up|call)|the play\b|a play\b|dinner theat\w+)\b'
   craft.diy_materials:
     gloss: Hands-on material experiment (bioplastics, kitchen-lab, fibre)
     audience: both
@@ -285,6 +319,9 @@ tags:
     audience: her
     weight: 1.5
     evidence: 06_halos/people/johannah_call_debrief_juneteenth_mojo_buttons_2026-06-20.md
+    # scope: event_text — Dunbar is a Fort Myers neighbourhood AND a library
+    # branch name, and v1 tagged its storytimes as heritage events.
+    scope: event_text
     match: '\b(juneteenth|heritage (day|festival)|black history|hispanic heritage|cultural festival|dunbar)\b'
   civic.education:
     gloss: Schools, literacy, teachers

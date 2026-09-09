@@ -90,16 +90,37 @@ def rate(
     access: str | None = None,
     price_min: float | None = None,
     price_text: str | None = None,
+    implied_tags: tuple[str, ...] | list[str] | None = None,
 ) -> Rated:
     tag_specs, cost_specs = _compiled()
+    # Two haystacks. `event_text` is the event's own words; `all` adds the place
+    # and the source. A tag declares which it reads, because a word can be true
+    # of the building and false of the event inside it.
+    event_text = " \n ".join(part for part in (title, description, category) if part)
     haystack = " \n ".join(
         part for part in (title, description, category, venue, source_name) if part
     )
 
     hits: list[tuple[str, float, str]] = []
+    matched: set[str] = set()
     for name, pattern, spec in tag_specs:
-        if pattern.search(haystack):
+        target = event_text if spec.get("scope") == "event_text" else haystack
+        if pattern.search(target):
             hits.append((name, float(spec.get("weight", 1.0)), spec.get("audience", "both")))
+            matched.add(name)
+
+    # A source can declare tags every row it produces carries — Florida Rep is a
+    # theatre, Naples Botanical Garden is a garden. More reliable than a regex
+    # over a venue string, and it is how a person would reason.
+    vocab = load_vocabulary()["tags"]
+    for name in implied_tags or ():
+        if name in matched:
+            continue
+        spec = vocab.get(name)
+        if not spec:
+            continue
+        hits.append((name, float(spec.get("weight", 1.0)), spec.get("audience", "both")))
+        matched.add(name)
     hits.sort(key=lambda h: -h[1])
 
     cost_hits: list[tuple[str, float, bool]] = []

@@ -174,6 +174,64 @@ def cmd_migrate(args) -> int:
 
 # ----------------------------------------------------------------- query ----
 
+def cmd_rerate(args) -> int:
+    """Re-score every candidate under the current vocabulary, append the diffs.
+
+    A vocabulary fix is a correction, and in an append-only ledger a correction
+    is a new row. This appends one `observation` per candidate whose tags,
+    audience, rating or reason changed, and touches nothing else — Luis's
+    feedback and the row's status carry forward, and `first_seen_at` is frozen.
+    """
+    from .interest import load_vocabulary, rate
+
+    version = load_vocabulary()["version"]
+    implied = {s.name: s.implied_tags for s in SOURCES}
+    state = L.fold(args.ledger)
+    rows, changed = [], 0
+    for cand in state.values():
+        if cand.get("record_type") not in (None, "observation", "feedback", "status"):
+            continue
+        r = rate(
+            title=cand.get("title") or "",
+            description=cand.get("description"),
+            category=cand.get("category"),
+            venue=cand.get("venue"),
+            source_name=cand.get("source_name"),
+            distance_mi=cand.get("distance_mi"),
+            geo_precision=cand.get("geo_precision"),
+            access=cand.get("access"),
+            price_min=(cand.get("cost") or {}).get("price_min"),
+            price_text=(cand.get("cost") or {}).get("price_text"),
+            implied_tags=implied.get(cand.get("source_name"), ()),
+        )
+        if (
+            cand.get("interest_tags") == r.interest_tags
+            and cand.get("interest_costs") == r.costs
+            and cand.get("audience") == r.audience
+            and cand.get("rating") == r.rating
+            and cand.get("rating_reason") == r.rating_reason
+        ):
+            continue
+        changed += 1
+        updated = dict(cand)
+        updated.update(
+            interest_tags=r.interest_tags,
+            interest_costs=r.costs,
+            audience=r.audience,
+            rating=r.rating,
+            rating_reason=r.rating_reason,
+            rerated_under=version,
+        )
+        updated.pop("status_note", None)
+        updated.pop("status_at", None)
+        rows.append(L.observation_row(candidate=updated, previous=cand))
+    appended = 0 if args.dry_run else L.append_rows(args.ledger, rows)
+    print(json.dumps({"vocabulary": version, "candidates": len(state),
+                      "rescored": changed, "appended": appended,
+                      "dry_run": args.dry_run}, indent=2))
+    return 0
+
+
 def cmd_query(args) -> int:
     state = L.fold(args.ledger)
     rows = [r for r in state.values() if not r.get("is_spam")]
@@ -302,6 +360,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--dry-run", action="store_true")
     s.set_defaults(func=cmd_migrate)
 
+    s = sub.add_parser("rerate", help="Re-score every candidate under the current vocabulary")
+    s.add_argument("--ledger", default=DEFAULT_LEDGER)
+    s.add_argument("--dry-run", action="store_true")
+    s.set_defaults(func=cmd_rerate)
+
     s = sub.add_parser("query", help="Radius query over the ledger's current state")
     s.add_argument("--ledger", default=DEFAULT_LEDGER)
     s.add_argument("--radius-mi", type=float, default=L.DEFAULT_RADIUS_MI)
@@ -342,7 +405,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    known = {"scrape", "ledger-append", "migrate", "query", "feedback", "status", "health", "-h", "--help"}
+    known = {"scrape", "ledger-append", "migrate", "rerate", "query",
+             "feedback", "status", "health", "-h", "--help"}
     if not argv or argv[0] not in known:
         # Back-compat: the pre-ledger CLI took only flags and always scraped.
         argv = ["scrape", *argv]
