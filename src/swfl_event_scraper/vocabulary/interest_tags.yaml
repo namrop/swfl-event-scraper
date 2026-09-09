@@ -1,0 +1,417 @@
+# Controlled interest vocabulary for the household event ledger.
+#
+# Every tag is dotted `family.leaf`. `audience` is the DEFAULT attribution the
+# matcher writes when nothing in the event text overrides it: `me` (Luis),
+# `her` (Johannah), `both`.
+#
+# `evidence` is the canon path the tag was read off. Nothing here was invented:
+# the vocabulary was derived on 2026-09-09 from Johannah's halo and its sibling
+# signal notes under 06_halos/people/. Where a tag is thin, `confidence: low`
+# says so rather than pretending.
+#
+# `weight` is the matcher's base contribution to `rating` (0-5) when the tag
+# fires. `match` is the case-insensitive regex the matcher runs against
+# title + description + category + venue.
+#
+# Costs (down-rating) live in a separate `costs:` block at the bottom. The
+# largest one is NOT an interest miss: Johannah's sobriety date is 2025-08-17,
+# so alcohol-centred events are hard down-rated. That was found in the halo
+# and was absent from the lane's original brief.
+
+version: interest_tags.v1
+generated: 2026-09-09
+origin_note: 20_digital_architecture/household_newspaper/source_audit_and_adjudications_2026-09-09.md
+
+tags:
+  # ---- water ----------------------------------------------------------
+  water.boat_day:
+    gloss: Boat trips to the barrier islands (Cayo Costa, Cabbage Key, Pine Island)
+    audience: both
+    weight: 2.0
+    evidence: 06_halos/people/johannah_great_time_on_cayo_costa_cabbage_key_day_2026-03-28.md
+    match: '\b(boat (trip|tour|cruise|day)|cayo costa|cabbage key|pine island|bokeelia|island hop|sunset cruise|ferry)\b'
+  water.beach_causeway:
+    gloss: Beach and causeway days, usually with the dogs
+    audience: both
+    weight: 1.5
+    evidence: 06_halos/people/johannah_artifact_index_2026-03-19.md
+    match: '\b(beach|causeway|shoreline|waterfront|sandbar|pier)\b'
+  water.snorkel_shell:
+    gloss: Snorkelling and shell collecting
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_external_disclosure_boundaries_2026-08-26.md
+    match: '\b(snorkel\w*|shelling|shell (club|show|collect\w*)|sea ?shell)\b'
+  water.fishing:
+    gloss: Fishing
+    audience: her
+    weight: 1.0
+    evidence: 06_halos/people/johannah_hinge_profile_context_2024-10_capture_2026-06-24.md
+    match: '\b(fishing|angler|fish fry clinic|cast net)\b'
+  water.nautical_heritage:
+    gloss: Lighthouses, charts, maritime history, docent talks
+    audience: both
+    weight: 1.5
+    evidence: 06_halos/people/johannah_lost_pine_island_nautical_map_sun_shirt_2026-03-28.md
+    match: '\b(lighthouse|nautical|maritime|shipwreck|calusa|pirate|schooner)\b'
+
+  # ---- nature and ecology ---------------------------------------------
+  nature.long_view:
+    gloss: Remote, undesigned landscape with a long sightline — her stated way of finding a sense of scale
+    audience: her
+    weight: 2.0
+    evidence: 06_halos/people/johannah_sense_of_scale_and_uncivilized_horizon_2026-07-17.md
+    match: '\b(wilderness|preserve|backcountry|everglades|marsh|estuary|prairie|wildlife refuge|slough|nature walk|guided walk|birding|bird walk)\b'
+  nature.foraging:
+    gloss: Mushroom foraging and wild finds
+    audience: her
+    weight: 2.0
+    evidence: 06_halos/people/johannah_hinge_profile_context_2024-10_capture_2026-06-24.md
+    match: '\b(forag\w+|mushroom|wild edible|mycolog\w+)\b'
+  nature.plants_horticulture:
+    gloss: Plants, orchids, growing things
+    audience: her
+    weight: 2.0
+    evidence: 06_halos/people/johannah_target_plants_and_moral_frame_mismatch_2026-03-26.md
+    match: '\b(orchid|plant sale|horticultur\w+|native plant|propagat\w+|succulent|bonsai|seed swap|nursery tour)\b'
+  nature.gardens_estates:
+    gloss: Botanical gardens, sculpture gardens, historic grounds
+    audience: both
+    weight: 2.0
+    evidence: 06_halos/people/johannah_artifact_index_2026-03-19.md
+    match: '\b(botanical garden|garden tour|sculpture garden|historic (home|estate|house)|winter estates|arboretum|garden walk)\b'
+  eco.permaculture:
+    gloss: Permaculture, soil, land-care
+    audience: her
+    weight: 2.0
+    evidence: 06_halos/people/johannah.md
+    match: '\b(permacultur\w+|composting|soil health|regenerative|food forest|homestead\w*)\b'
+  eco.climate_policy:
+    gloss: Climate policy and coalition-building
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_climate_policy_and_coalition_willing_signal_2026-05-08.md
+    match: '\b(climate|sea level|resilien\w+ plan|sustainability (summit|forum|workshop)|conservation 20/20|water quality)\b'
+  eco.animals_welfare:
+    gloss: Animals, rescue, animal-agency ethics
+    audience: both
+    weight: 1.5
+    evidence: 06_halos/people/johannah_call_debrief_juneteenth_mojo_buttons_2026-06-20.md
+    match: '\b(animal (rescue|shelter|welfare)|adoption event|humane society|wildlife rehab|manatee|sea turtle|dog park)\b'
+
+  # ---- arts and craft --------------------------------------------------
+  arts.watercolor:
+    gloss: Watercolour and hand-painted cards — her own practice
+    audience: her
+    weight: 2.5
+    evidence: 06_halos/people/johannah_tobios_watercolor_set_vermont_note_2026-07-07.md
+    match: '\b(watercolo\w+|paint (and|&) sip|painting (class|workshop)|plein air|sketch\w* (class|walk))\b'
+  arts.papercraft:
+    gloss: Origami, cards, hand-bound paper objects
+    audience: both
+    weight: 1.5
+    evidence: 06_halos/people/johannah_lighthouse_cardstock_bookmark_gift_provenance_2026-05-07.md
+    match: '\b(origami|papercraft|bookbind\w+|card ?making|zine|letterpress|calligraph\w+)\b'
+  arts.museum:
+    gloss: Art museums and galleries
+    audience: both
+    weight: 1.5
+    evidence: 06_halos/people/johannah_artifact_index_2026-03-19.md
+    match: '\b(museum|gallery (opening|walk|talk|reception)|art exhibit\w*|in the galleries|curator (talk|tour))\b'
+  arts.makers_market:
+    gloss: Independent makers, craft stalls, artisan fairs
+    audience: both
+    weight: 2.0
+    evidence: 06_halos/people/johannah_mine_is_yours_and_the_trip_summation_2026-08-23.md
+    match: '\b(maker\w* market|craft (fair|market|show)|artisan|handmade market|green ?market|farmers.? market|art ?walk|art festival)\b'
+  arts.theatre:
+    gloss: Plays, musicals, live performance
+    audience: her
+    confidence: low
+    weight: 2.0
+    evidence: 06_halos/people/johannah_hamilton_album_note_2026-05-29.md
+    note: >-
+      Grounded only in the Hamilton cast-album gift ("Let this be our soundtrack
+      for the long road ahead"), which establishes musical-theatre affinity, not
+      a theatregoing habit. Luis named theatres explicitly in the 18:54 ruling,
+      so the tag ships at full weight and the feedback loop will settle it.
+    match: '\b(play|musical|theat(re|er)|one-act|staged reading|comedy show|improv|cabaret|drama|opening night|matinee)\b'
+  craft.diy_materials:
+    gloss: Hands-on material experiment (bioplastics, kitchen-lab, fibre)
+    audience: both
+    weight: 1.5
+    evidence: 06_halos/people/johannah_instagram_reel_daifein_bioplastic_recipes_signal_2026-09-06.md
+    match: '\b(diy|maker ?space|weav\w+|pottery|ceramics|stained glass|natural dye|fiber arts|woodwork\w*|bioplastic)\b'
+
+  # ---- books -----------------------------------------------------------
+  books.physical:
+    gloss: Physical books, tactile reading ritual
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah.md
+    match: '\b(book (sale|club|signing|swap|fair)|author (talk|visit|reading)|poetry reading|used books)\b'
+  books.library:
+    gloss: Library programmes as an outing
+    audience: her
+    confidence: low
+    weight: 1.0
+    evidence: 06_halos/people/johannah_good_morning_baby_library_note_undated_capture_2026-06-29.md
+    note: Grounded only in a location note ("I'm @ the library"), not a stated interest.
+    match: '\b(library|storytime|librar\w+ program)\b'
+  books.reading_together:
+    gloss: Shared reading as a meaning-making practice
+    audience: both
+    weight: 1.0
+    evidence: 06_halos/people/johannah_private_context_2026-03-19.md
+    match: '\b(read.aloud|shared reading|book discussion|great books)\b'
+
+  # ---- games -----------------------------------------------------------
+  games.board:
+    gloss: Tabletop games — the grounded titles (Azul, Parks) are calm and nature-themed
+    audience: both
+    weight: 2.0
+    evidence: 06_halos/people/johannah_porch_elicitation_vermont_memory_list_2026-07-27.md
+    match: '\b(board game|tabletop|game night|puzzle (night|swap)|chess|mahjong|dominoes|card game)\b'
+
+  # ---- food ------------------------------------------------------------
+  food.culinary_adventure:
+    gloss: Trying new food places together, as an event — her words, "I love going on culinary adventures with you"
+    audience: both
+    weight: 2.0
+    evidence: 06_halos/people/johannah_more_room_to_breathe_financial_turn_2026-08-22.md
+    match: '\b(food (truck|festival|tour|crawl)|tasting|restaurant week|supper club|pop.?up dinner)\b'
+  food.cooking_together:
+    gloss: Cooking as a shared domestic event
+    audience: both
+    weight: 2.0
+    evidence: 06_halos/people/johannah_cast_iron_crepes_hit_signal_2026-05-22.md
+    match: '\b(cooking (class|demo|workshop)|culinary (class|workshop)|baking class|chef demo|knife skills|cook.?along)\b'
+  food.world_cuisine:
+    gloss: Latin American / Peruvian / South-East Asian food
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_ceviche_and_peru_2026-08-21.md
+    match: '\b(ceviche|peruvian|latin|caribbean|thai|vietnamese|indonesian|filipino|world cuisine)\b'
+  food.spicy:
+    gloss: High spice tolerance, treated as a challenge
+    audience: her
+    weight: 1.0
+    evidence: 06_halos/people/johannah_indonesia_village_and_trips_field_2026-08-15.md
+    match: '\b(chili|chile (fest|cook.?off)|hot sauce|spicy|salsa (contest|competition))\b'
+  food.heritage_syrian:
+    gloss: Syrian / Levantine food as living lineage
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_mother_laura_song_prompt_and_lineage_context_2026-05-09.md
+    match: '\b(syrian|lebanese|levantine|middle eastern (food|festival)|mediterranean festival|grape ?leaves)\b'
+
+  # ---- music -----------------------------------------------------------
+  music.choral:
+    gloss: Choir, a cappella, massed-voice work — "Johannah likes a cappella in general"
+    audience: her
+    weight: 2.5
+    evidence: 06_halos/people/johannah_music_fit_surface_2026-06-24.md
+    match: '\b(chorale?|choir|a cappella|chorus|vocal ensemble|madrigal|evensong|sing.?along|community sing)\b'
+  music.folk_trad:
+    gloss: Communal folk, singalong, trad and vernacular music
+    audience: her
+    weight: 2.0
+    evidence: 06_halos/people/johannah_realtime_music_reels_style_signals_2026-06-28.md
+    match: '\b(folk|bluegrass|celtic|irish session|old.?time|americana|singer.?songwriter|contra dance|barn dance|fiddle)\b'
+  music.soul_gospel:
+    gloss: Soul and R&B with gospel-blues weight
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_realtime_music_reels_style_signals_2026-06-28.md
+    match: '\b(gospel|soul (music|night)|r&b|blues|spirituals)\b'
+  music.ambient_cinematic:
+    gloss: Enya-adjacent spaciousness, cinematic and world music
+    audience: her
+    weight: 1.0
+    evidence: 06_halos/people/johannah_music_fit_surface_2026-06-24.md
+    match: '\b(ambient|new age|world music|cinematic|film score|harp recital)\b'
+  music.dancing:
+    gloss: Social dancing
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_external_disclosure_boundaries_2026-08-26.md
+    match: '\b(dance (class|night|social|party)|salsa dancing|swing dance|line danc\w+|ballroom)\b'
+  music.live_local:
+    gloss: Live local music of no particular genre
+    audience: both
+    confidence: low
+    weight: 1.0
+    evidence: 21_letters_and_creative/letters/letter_to_johannah_eleven_month_soberversary_homecoming_seed_2026-07-17.md
+    note: Ungrounded as a stated preference; carried so a hit can be logged when one occurs.
+    match: '\b(live music|concert|recital|open mic|music (festival|series)|band)\b'
+
+  # ---- spirit ----------------------------------------------------------
+  spirit.friends_meeting:
+    gloss: Quaker meeting, unprogrammed worship, silence — she grew up in Middlebury Friends Meeting
+    audience: her
+    weight: 2.5
+    evidence: 06_halos/people/johannah.md
+    match: '\b(quaker|friends meeting|meeting for worship|unprogrammed worship)\b'
+  spirit.contemplative:
+    gloss: Meditation, silence, contemplative practice
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_indonesia_village_and_trips_field_2026-08-15.md
+    match: '\b(meditation|mindfulness|contemplativ\w+|silent retreat|labyrinth walk|sound bath|yoga nidra)\b'
+  spirit.interfaith:
+    gloss: Cross-tradition gatherings
+    audience: her
+    confidence: low
+    weight: 1.0
+    evidence: 06_halos/people/johannah_middlebury_friends_meeting_childhood_context_2026-07-09.md
+    note: Two thin traces only (a Bahá'í meeting, a Friends meeting hosted in a Havurah house).
+    match: '\b(interfaith|multifaith|tikkun olam|baha.?i|unitarian|ecumenical)\b'
+
+  # ---- civic and tech --------------------------------------------------
+  civic.volunteering:
+    gloss: Organised volunteer days and service orgs
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_target_charity_census_cape_coral_2026-08-26.md
+    match: '\b(volunteer\w*|service day|beach cleanup|clean.?up|food drive|donation drive|habitat for humanity)\b'
+  civic.community_development:
+    gloss: Community development, mutual aid, care packages — she holds the degree
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_external_disclosure_boundaries_2026-08-26.md
+    match: '\b(community (development|forum|conversation)|mutual aid|neighborhood association|affordable housing|food bank|resource fair)\b'
+  civic.local_heritage_events:
+    gloss: Juneteenth and local civic/cultural heritage events
+    audience: her
+    weight: 1.5
+    evidence: 06_halos/people/johannah_call_debrief_juneteenth_mojo_buttons_2026-06-20.md
+    match: '\b(juneteenth|heritage (day|festival)|black history|hispanic heritage|cultural festival|dunbar)\b'
+  civic.education:
+    gloss: Schools, literacy, teachers
+    audience: her
+    weight: 1.0
+    evidence: 06_halos/people/johannah_family_planning_and_florida_schools_2026-08-01.md
+    match: '\b(school board|literacy|tutor\w+|scholarship|teacher (workshop|appreciation)|education (forum|summit))\b'
+  civic.meeting:
+    gloss: A public meeting of a government body — attendable, occasionally the point
+    audience: me
+    weight: 0.5
+    evidence: 20_digital_architecture/household_newspaper/source_audit_and_adjudications_2026-09-09.md
+    match: '\b(city council|council meeting|board meeting|public hearing|commission meeting|advisory (board|committee)|town hall|workshop meeting|budget hearing)\b'
+  tech:
+    gloss: Civic tech, systems-building, computing
+    audience: me
+    weight: 1.5
+    evidence: 06_halos/people/luis_ramirez.md
+    match: '\b(hackathon|coding|software|cybersecurity|maker ?faire|robotics|3d print\w*|ai (talk|panel|workshop)|linux|open source)\b'
+
+  # ---- outdoor, travel, social, pets -----------------------------------
+  outdoor.hiking:
+    gloss: Hikes and trail walks
+    audience: both
+    weight: 1.5
+    evidence: 06_halos/people/johannah_porch_elicitation_vermont_memory_list_2026-07-27.md
+    match: '\b(hike|hiking|trail (walk|day|run)|guided (hike|walk)|nature trail|boardwalk walk)\b'
+  outdoor.cycling:
+    gloss: Bike rides
+    audience: her
+    weight: 1.0
+    evidence: 06_halos/people/johannah_bike_ride_headache_phone_note_undated_capture_2026-06-30.md
+    match: '\b(bike (ride|night|rodeo|safety)|cycling|bicycle|pedal)\b'
+  outdoor.ritual_walk:
+    gloss: Evening and lantern walks as a set ritual
+    audience: both
+    weight: 1.0
+    evidence: 06_halos/people/johannah_relationship_practices_2026-03-19.md
+    match: '\b(lantern walk|moonlight (walk|paddle)|night walk|full moon|star (party|gaz\w+)|sunset walk)\b'
+  travel.day_trip:
+    gloss: A road trip out of the county worth a whole day
+    audience: both
+    weight: 1.0
+    evidence: 06_halos/people/johannah_artifact_index_2026-03-19.md
+    match: '\b(day trip|excursion|field trip|guided tour|bus tour)\b'
+  social.strangers_conversation:
+    gloss: Events where you fall into talk with locals and makers — her stated favourite thing about them
+    audience: both
+    weight: 1.5
+    evidence: 06_halos/people/johannah_mine_is_yours_and_the_trip_summation_2026-08-23.md
+    match: '\b(meet.?and.?greet|social hour|community (potluck|picnic|gathering)|mixer|potluck|block party|neighborhood night)\b'
+  pets.dog_friendly:
+    gloss: Dog-welcoming venues and events
+    audience: both
+    weight: 1.5
+    evidence: 06_halos/people/johannah_music_fit_surface_2026-06-24.md
+    match: '\b(dog.?friendly|pet.?friendly|yappy hour|paws|dog (walk|show|park)|pup)\b'
+
+# Down-rating. Each cost subtracts from the rating; `hard` costs floor the row.
+costs:
+  cost.alcohol_centred:
+    gloss: >-
+      Alcohol-centred events. Johannah's sobriety date is 2025-08-17; her own
+      Hinge framing was already "instead of grabbing drinks, let's ...", and her
+      father's dementia is attributed to lifelong alcoholism. Breweries, wine
+      walks, bar trivia and beer festivals are excluded, not merely down-rated.
+    evidence: 06_halos/people/johannah_essence_of_change_meeting_share_2026-07-21.md
+    penalty: 5.0
+    hard: true
+    match: '\b(brewery|brewing co|beer (fest\w*|garden|tasting|night)|wine (walk|tasting|down|fest\w*|dinner)|winery|cocktail|happy hour|pub crawl|distiller\w+|bar crawl|margarita|tiki bar|oktoberfest|sip (and|&))\b'
+  cost.corporate_retail:
+    gloss: >-
+      Corporate and big-box retail framing. Her heaviness about the futility of
+      corporate life is documented, as is the Target plant-discard episode.
+    evidence: 06_halos/people/johannah_target_plants_and_moral_frame_mismatch_2026-03-26.md
+    penalty: 1.5
+    match: '\b(grand opening|ribbon.?cutting|chamber of commerce (mixer|luncheon)|networking (breakfast|luncheon)|business expo|franchise|dealership|timeshare)\b'
+  cost.campus_internal:
+    gloss: >-
+      College business that is not open to a household — classroom labs,
+      restricted rooms, student-org meetings, Zoom-only items. Down-rated hard
+      rather than excluded, per Luis's ruling that campus-only rows get low
+      ratings, not exclusion.
+    evidence: 20_digital_architecture/household_newspaper/source_audit_and_adjudications_2026-09-09.md
+    penalty: 2.5
+    match: '\b(restricted|class lab|computer classroom|conference room|advising|orientation|registration deadline|final exam|midterm|faculty (meeting|senate)|student government|greek life|resume workshop|zoom|virtual only|canvas|blackboard)\b'
+  cost.long_drive:
+    gloss: >-
+      Distance. Applied by the matcher from `distance_mi`, not by regex: the
+      demonstrated day-trip radius is about two hours each way (St Petersburg
+      and Sarasota in one day), so the penalty ramps rather than cliffs.
+    evidence: 06_halos/people/johannah_mine_is_yours_and_the_trip_summation_2026-08-23.md
+    penalty: 0.0
+    match: null
+  cost.manicured_nature:
+    gloss: >-
+      Events that promise wilderness and deliver landscaping. Florida's built
+      environment already under-delivers for her long-view need, so a
+      "nature" event inside a shopping plaza is worse than no nature at all.
+    evidence: 06_halos/people/johannah_sense_of_scale_and_uncivilized_horizon_2026-07-17.md
+    penalty: 0.5
+    match: '\b(plaza|mall|town center|shoppes|promenade at)\b'
+
+# Things deliberately NOT in the vocabulary, and why.
+excluded:
+  - tag: recovery.meetings
+    reason: >-
+      Her home group, shares and sponsor are marked internal-only in the halo
+      and are never exported or auto-promoted. No public tag, no ledger row.
+    evidence: 06_halos/people/johannah_one_year_anniversary_sponsor_refusal_private_context_2026-08-15.md
+  - tag: water.kayak_paddle
+    reason: >-
+      The lane brief named kayak/paddle as halo evidence. It is not: zero hits
+      across the ~100 johannah* files. Left out rather than invented; add it if
+      Luis says it is real.
+    evidence: null
+  - tag: crowds / noise aversion
+    reason: >-
+      Named in the brief as costs. Neither is documented. The nearest hit is
+      "tolerance and capacity for neutrality amongst chaos", which is the
+      opposite of an aversion.
+    evidence: 06_halos/people/johannah_essence_of_change_meeting_share_2026-07-21.md
+  - tag: cost.shift_schedule
+    reason: >-
+      Her shift schedule is not written down anywhere in the halo. All that
+      exists is "early shifts / volunteering / inventory days" quoted as
+      examples in one Valentine planning session. Fatigue is real; the schedule
+      that would let a matcher act on it is not recorded. Probably lives in
+      22_life_and_logistics/people/johannah.md.
+    evidence: 06_halos/people/johannah_relationship_practices_2026-03-19.md

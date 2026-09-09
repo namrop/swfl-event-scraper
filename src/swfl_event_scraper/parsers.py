@@ -568,3 +568,109 @@ def parse_generic_jsonld_events(html: str, source_url: str, source_name: str = "
                 )
             )
     return events
+
+
+# ---------------------------------------------------------------------------
+# Cape Coral Parks WebTrac — browser-lane grid dump
+# ---------------------------------------------------------------------------
+#
+# WebTrac has been unreadable since June: Cloudflare blocks by client
+# fingerprint, so curl, requests and the r.jina.ai reader all get 403 from
+# Sol and from Acubens' residential IP alike, and the site publishes no iCal
+# or RSS. The recovery lane got the data on 2026-09-09 through an Earthglass
+# Chrome lane on 40eridani — 496 occurrences, 127 titles — and the method is
+# written up at
+# 20_digital_architecture/household_newspaper/cape_coral_webtrac_recovery_2026-09-09.md.
+#
+# This parser therefore takes a PRE-FETCHED dump rather than fetching. The
+# browser lane saves the calendar grid's HTML; this reads it. Nothing here
+# touches the network, which is the point: the fetch is a separate, browser-
+# shaped act on a different host.
+#
+# Grid shape, per the recovery report:
+#   td  ->  .calendar__day-label-long   the exact date
+#   a.calendar__block                    one occurrence
+#       aria-label   "<title>\n<time range>"
+#       data-state-item                  the FMID
+#       href                             the detail URL, carrying a session
+#                                        _csrf_token that must be stripped
+#
+# FMIDs recur, so the caller dedupes on (FMID, start_datetime).
+
+WEBTRAC_CSRF_RE = re.compile(r"[?&]_csrf_token=[^&]*", re.I)
+WEBTRAC_TIME_RE = re.compile(
+    r"(\d{1,2}:\d{2}\s*[apAP]\.?[mM]\.?)\s*(?:-|–|to)\s*(\d{1,2}:\d{2}\s*[apAP]\.?[mM]\.?)"
+)
+
+
+def strip_webtrac_csrf(url: str) -> str:
+    """Session state must not be stored in a ledger row's source_url."""
+    return WEBTRAC_CSRF_RE.sub("", url or "")
+
+
+def parse_capecoral_webtrac_grid_html(
+    html: str,
+    source_url: str,
+    source_name: str = "Cape Coral Parks WebTrac Events",
+) -> list[Event]:
+    soup = BeautifulSoup(html, "html.parser")
+    events: list[Event] = []
+    seen: set[tuple[str, str]] = set()
+
+    for cell in soup.find_all("td"):
+        label = cell.select_one(".calendar__day-label-long")
+        if not label:
+            continue
+        try:
+            day = date_parser.parse(clean_text(label.get_text()))
+        except (ValueError, OverflowError):
+            continue
+        for block in cell.select("a.calendar__block"):
+            # The newline inside aria-label is the title/time separator, so the
+            # raw attribute is split BEFORE whitespace is collapsed. Some blocks
+            # carry no newline; there the time range itself is the boundary.
+            aria_raw = block.get("aria-label") or block.get_text() or ""
+            parts = [p.strip() for p in re.split(r"[\n\r]+", aria_raw) if p.strip()]
+            if len(parts) > 1:
+                title, time_text = clean_text(parts[0]), " ".join(parts[1:])
+            else:
+                flat = clean_text(aria_raw)
+                split = WEBTRAC_TIME_RE.search(flat)
+                title = clean_text(flat[: split.start()]) if split else flat
+                time_text = flat[split.start():] if split else ""
+            aria = clean_text(aria_raw)
+            if not title:
+                continue
+            start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = None
+            match = WEBTRAC_TIME_RE.search(time_text)
+            if match:
+                iso_day = day.date().isoformat()
+                try:
+                    start = date_parser.parse(f"{iso_day} {match.group(1)}")
+                    end = date_parser.parse(f"{iso_day} {match.group(2)}")
+                except (ValueError, OverflowError):
+                    end = None
+            fmid = clean_text(block.get("data-state-item") or "")
+            key = (fmid, start.isoformat())
+            if key in seen:
+                continue
+            seen.add(key)
+            href = block.get("href") or source_url
+            if href.startswith("/"):
+                href = "https://flcapecoralweb.myvscloud.com" + href
+            events.append(
+                Event(
+                    title=title,
+                    raw_title=aria,
+                    start_datetime=start.isoformat(),
+                    end_datetime=end.isoformat() if end else None,
+                    location="Cape Coral Parks & Recreation",
+                    source_url=strip_webtrac_csrf(href),
+                    source_name=source_name,
+                    category="Parks & Recreation",
+                    source_event_id=fmid or None,
+                    interest_flags=["civic"],
+                )
+            )
+    return events

@@ -62,3 +62,58 @@ sqlite3 data/events.sqlite3 \
 ```bash
 python3 -m pytest tests -q
 ```
+
+---
+
+## Sol migration, 2026-09-09 — the ledger
+
+This repo moved from Acubens to Sol on 2026-09-09 and its output moved from a
+machine-local SQLite into an append-only ledger in the Atrium. The Acubens copy
+is retired, not deleted (`RETIRED_2026-09-09.md` there).
+
+SQLite is still the working store — the tests cover it and the scrape path is
+unchanged. What is new is a `ledger-append` step that folds the ledger to
+latest-row-per-id and appends only what is new or actually different.
+
+```bash
+# scrape into SQLite only (the old behaviour; bare flags still work)
+PYTHONPATH=src python3 -m swfl_event_scraper.cli scrape --json
+
+# scrape, then append new/changed rows to the Atrium ledger
+PYTHONPATH=src python3 -m swfl_event_scraper.cli ledger-append
+
+# what is worth doing in the next fortnight, widening if the week is thin
+PYTHONPATH=src python3 -m swfl_event_scraper.cli query \
+    --min-rating 3 --since 2026-09-10 --radius-mi 15 --widen-until 12
+
+# Luis tunes the searcher
+PYTHONPATH=src python3 -m swfl_event_scraper.cli feedback <id> +1 --note "yes"
+PYTHONPATH=src python3 -m swfl_event_scraper.cli feedback <id> -1 --note "campus only"
+
+PYTHONPATH=src python3 -m swfl_event_scraper.cli health
+```
+
+The row contract, the fold rule, the rating formula and the radius ladder are
+written up in canon at
+`12_runtime/ledgers/events/event_candidates_row_contract_v1.md`. The interest
+vocabulary is `src/swfl_event_scraper/vocabulary/interest_tags.yaml`, data
+rather than code, with the canon path each tag was read off.
+
+Scheduled on Sol as Hermes cron job `541cbcda7679`, Tuesday and Friday 03:10 ET,
+through `20_digital_architecture/household_newspaper/scripts/events_ledger_append.py`.
+
+### Sources added 2026-09-09
+
+Live: Florida Repertory Theatre, Alliance for the Arts (which also carries
+Theatre Conspiracy and the GreenMarket), Naples Botanical Garden — all three
+through the existing Events Calendar REST adapter.
+
+Declared and not fetched, each with the probed reason in its `notes`: Barbara B.
+Mann, Broadway Palm, Cultural Park Theatre, Laboratory Theater, Sidney & Berne
+Davis, Theatre Conspiracy, Gulfshore Playhouse, The Naples Players, Artis—Naples
+(robots.txt Disallow, honoured), Collier County Public Library, Eventbrite.
+
+Cape Coral Parks WebTrac is now a `fetch: browser_lane` source: Cloudflare
+blocks every request client by fingerprint, so the adapter reads a grid dump
+produced by an Earthglass Chrome lane on 40eridani rather than fetching. Point
+`SWFL_WEBTRAC_DUMP` at the saved HTML.

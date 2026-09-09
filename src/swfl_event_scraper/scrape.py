@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import time
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Iterable
 from urllib.parse import quote
@@ -11,6 +14,7 @@ import urllib3
 from .models import Event
 from .parsers import (
     enrich_event_from_civicengage_detail,
+    parse_capecoral_webtrac_grid_html,
     parse_capecoral_revize_events,
     parse_capecoral_webtrac_reader_markdown,
     parse_fgcu_25live_events,
@@ -24,7 +28,28 @@ from .parsers import (
 )
 from .sources import Source
 
-USER_AGENT = "swfl-event-scraper/0.1 (+local civic calendar appliance)"
+USER_AGENT = (
+    "swfl-event-scraper/0.2 (household newspaper appliance; one household, "
+    "twice weekly; contact leramirez.92@gmail.com)"
+)
+
+# Parsers that name a source we deliberately do not fetch. Each value is a
+# reason, not a TODO: the source's `notes` says what was probed and why it was
+# left. `scrape_source` returns an empty list and a health line for these.
+PENDING_PARSERS: dict[str, str] = {
+    "unsupported_webtrac": "needs browser rendering (Cloudflare)",
+    "static_links": "annual-event hub, no per-event dates",
+    "eventbrite_optional": "public search API retired in 2019; remaining API needs an OAuth key",
+    "civiclive_calendar_pending": "React portlet, no request adapter yet",
+    "js_rendered_no_feed": "listing is rendered client-side; no JSON-LD, no feed",
+    "dates_behind_ticketing": "show pages carry no run dates; they live in the ticketing system",
+    "rest_api_disabled": "WordPress REST API disabled (404 on /wp-json)",
+    "no_event_surface": "no events plugin, no event post type, no JSON-LD",
+    "tls_failure_covered_elsewhere": "TLS handshake fails; the company's shows arrive via Alliance for the Arts",
+    "cpt_without_dates": "event post type exposed but carries no start/end date",
+    "bot_challenge": "403 to non-browser clients; a challenge bypass was not attempted",
+    "robots_disallowed": "robots.txt disallows the calendar path",
+}
 
 
 def capecoral_revize_data_url(public_url: str) -> str:
@@ -191,6 +216,21 @@ def scrape_source(source: Source) -> tuple[list[Event], str | None]:
             if "Target URL returned error 403" in markdown or "Attention Required! | Cloudflare" in markdown:
                 return [], "reader fallback reached Cloudflare block"
             events = parse_capecoral_webtrac_reader_markdown(markdown, year=now.year, month=now.month)
+        elif source.parser == "capecoral_webtrac_browser_dump":
+            # No fetch. The dump is produced by an Earthglass browser lane on
+            # 40eridani; Sol has no lane and an unpatched Chrome here is
+            # untested, so an absent dump is a health line, not an error.
+            dump = os.environ.get("SWFL_WEBTRAC_DUMP")
+            if not dump:
+                return [], "browser-lane dump not configured (set SWFL_WEBTRAC_DUMP)"
+            path = Path(dump)
+            if not path.exists():
+                return [], f"browser-lane dump not present at {path}"
+            events = parse_capecoral_webtrac_grid_html(
+                path.read_text(encoding="utf-8", errors="replace"),
+                source_url=source.url,
+                source_name=source.name,
+            )
         elif source.parser == "librarymarket":
             html = fetch_text(source.url)
             events = parse_librarymarket_events(html, source_url=source.url)
@@ -222,11 +262,11 @@ def scrape_source(source: Source) -> tuple[list[Event], str | None]:
         elif source.parser == "presence_events":
             payload = fetch_presence_events(source.url)
             events = parse_presence_events(payload, source_url=source.url, source_name=source.name)
-        elif source.parser in {"unsupported_webtrac", "static_links", "eventbrite_optional", "civiclive_calendar_pending"}:
+        elif source.parser in PENDING_PARSERS:
             # Source is intentionally tracked in the civic source map, but the v0
             # request-based adapter either needs browser rendering, a discovered
             # private endpoint, or an authenticated/API path before insertion.
-            return [], f"adapter pending for {source.parser}"
+            return [], f"adapter pending for {source.parser}: {PENDING_PARSERS[source.parser]}"
         else:
             return [], f"unknown parser {source.parser}"
     except Exception as exc:  # noqa: BLE001 - surface per-source health without killing whole scrape.
@@ -239,9 +279,19 @@ def scrape_source(source: Source) -> tuple[list[Event], str | None]:
 
 
 def scrape_sources(sources: Iterable[Source]) -> tuple[list[Event], list[dict[str, object]]]:
+    """Scrape each source in turn, pausing `crawl_delay_s` between live fetches.
+
+    The pause is between sources rather than inside them because every adapter
+    here is one or two requests; the cost of the whole sweep is a couple of
+    dozen requests twice a week.
+    """
     all_events: list[Event] = []
     health: list[dict[str, object]] = []
+    first = True
     for source in sources:
+        if not first and source.parser not in PENDING_PARSERS:
+            time.sleep(source.crawl_delay_s)
+        first = False
         events, error = scrape_source(source)
         all_events.extend(events)
         health.append(
@@ -249,6 +299,8 @@ def scrape_sources(sources: Iterable[Source]) -> tuple[list[Event], list[dict[st
                 "source": source.name,
                 "kind": source.kind.value,
                 "url": source.url,
+                "county": source.county,
+                "region": source.region,
                 "events": len(events),
                 "status": "ok" if error is None else "pending" if error.startswith("adapter pending") else "error",
                 "message": error,
