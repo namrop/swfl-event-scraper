@@ -17,6 +17,20 @@ DEFAULT_DB = "data/events.sqlite3"
 DEFAULT_LEDGER = "/srv/pharos/atrium/canon/12_runtime/ledgers/events/event_candidates.jsonl"
 
 
+def _require_ledger(path: str) -> bool:
+    """A missing ledger must be an error, not an empty answer.
+
+    `read_rows` yields nothing for a path that is not there, so a mistyped
+    --ledger used to produce a confident "0 candidates" — which, in the
+    newspaper's composer, is an empty events section rather than a failure.
+    Found the hard way: a query run from the wrong working directory.
+    """
+    if Path(path).exists():
+        return True
+    print(f"ledger not found: {path}", file=sys.stderr)
+    return False
+
+
 def _select(needles: list[str]):
     selected = list(SOURCES)
     if needles:
@@ -233,6 +247,8 @@ def cmd_rerate(args) -> int:
 
 
 def cmd_query(args) -> int:
+    if not _require_ledger(args.ledger):
+        return 2
     state = L.fold(args.ledger)
     rows = [r for r in state.values() if not r.get("is_spam")]
     if args.status:
@@ -286,6 +302,8 @@ def cmd_query(args) -> int:
 # -------------------------------------------------------------- feedback ----
 
 def cmd_feedback(args) -> int:
+    if not _require_ledger(args.ledger):
+        return 2
     state = L.fold(args.ledger)
     if args.id not in state:
         print(f"no candidate with id {args.id} in {args.ledger}", file=sys.stderr)
@@ -297,6 +315,8 @@ def cmd_feedback(args) -> int:
 
 
 def cmd_status(args) -> int:
+    if not _require_ledger(args.ledger):
+        return 2
     state = L.fold(args.ledger)
     if args.id not in state:
         print(f"no candidate with id {args.id} in {args.ledger}", file=sys.stderr)
@@ -308,6 +328,8 @@ def cmd_status(args) -> int:
 
 def cmd_health(args) -> int:
     """Read-only: what the ledger holds and where the scraper stands."""
+    if not _require_ledger(args.ledger):
+        return 2
     state = L.fold(args.ledger)
     by_source, by_precision, rated = {}, {}, 0
     for r in state.values():
