@@ -123,9 +123,16 @@ def rate(
         matched.add(name)
     hits.sort(key=lambda h: -h[1])
 
+    # A cost may also declare its scope. `title_description` reads only the
+    # event's title and description: the source's own category tags ("Club
+    # Meeting" on a public painting evening) and the building must not zero a
+    # public event (Luis, 2026-09-10: public events on campus are fair game).
+    title_description = " \n ".join(part for part in (title, description) if part)
     cost_hits: list[tuple[str, float, bool]] = []
     for name, pattern, spec in cost_specs:
-        if pattern.search(haystack):
+        scope = spec.get("scope")
+        target = title_description if scope == "title_description" else (event_text if scope == "event_text" else haystack)
+        if pattern.search(target):
             cost_hits.append((name, float(spec.get("penalty", 0.0)), bool(spec.get("hard"))))
 
     tag_names = [h[0] for h in hits]

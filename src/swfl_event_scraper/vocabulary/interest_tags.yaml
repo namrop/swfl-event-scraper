@@ -18,9 +18,16 @@
 # so alcohol-centred events are hard down-rated. That was found in the halo
 # and was absent from the lane's original brief.
 
-version: interest_tags.v1.5
+version: interest_tags.v1.6
 generated: 2026-09-09
 changelog:
+  - version: interest_tags.v1.6
+    at: 2026-09-10T10:12:00-04:00
+    why: >-
+      cost.campus_internal reads only the title and description (new cost
+      scope title_description, interest.py): FSW's source category tags carry
+      "Club Meeting" on a public painting evening, and the building or the
+      source's labels must not zero a public event.
   - version: interest_tags.v1.5
     at: 2026-09-10T09:55:00-04:00
     why: >-
@@ -434,6 +441,7 @@ costs:
     evidence: 20_digital_architecture/household_newspaper/issues/2026-09-10/manifest_2026-09-10.md
     penalty: 5.0
     hard: true
+    scope: title_description
     match: '\b(restricted|class lab|computer classroom|conference room|advising|orientation|registration deadline|final exam|midterm|faculty (meeting|senate)|student government|greek life|resume workshop|zoom|virtual only|office hours?|supplemental instruction|\(si\) sessions?|study (session|hall)s?|sim(ulation)? lab|lab check ?off|open lab|practicum|tutoring|learning (hub|assistant|lounge)|staff lunch|food truck|synchronous virtual class|student success workshop|career resources|transfer fair|college night|try ?outs?|chapter meeting|general meeting|weekly meeting|club meeting|small group|bible study|rush|mentor event|pedagogy seminar|community builder|welcome back event|kickoff|mastermind|mock trial|destination fgcu|eagle fest|urecwell|(?-i:[A-Z]{3})[ -]?\d{4}(?-i:[A-Z]?))\b'
   cost.long_drive:
     gloss: >-
