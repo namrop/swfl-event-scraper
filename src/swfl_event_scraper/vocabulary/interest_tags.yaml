@@ -18,9 +18,20 @@
 # so alcohol-centred events are hard down-rated. That was found in the halo
 # and was absent from the lane's original brief.
 
-version: interest_tags.v1.4
+version: interest_tags.v1.5
 generated: 2026-09-09
 changelog:
+  - version: interest_tags.v1.5
+    at: 2026-09-10T09:55:00-04:00
+    why: >-
+      Repair of v1.4. The course-code pattern was compiled case-insensitively
+      and matched "the 1950s" in the Alliance sock hop's description, and the
+      LMS words canvas and blackboard matched painting events; both public
+      arts events were zeroed. Luis, 2026-09-10 09:49: "The campus rule was
+      too absolute, I said public events on campus were fair game. The
+      alliance sock hop and the FSW painting evening are great. Some of the
+      best events." Course codes now require uppercase letters; canvas and
+      blackboard are out of the match.
   - version: interest_tags.v1.4
     at: 2026-09-09T23:25:00-04:00
     why: >-
@@ -423,7 +434,7 @@ costs:
     evidence: 20_digital_architecture/household_newspaper/issues/2026-09-10/manifest_2026-09-10.md
     penalty: 5.0
     hard: true
-    match: '\b(restricted|class lab|computer classroom|conference room|advising|orientation|registration deadline|final exam|midterm|faculty (meeting|senate)|student government|greek life|resume workshop|zoom|virtual only|canvas|blackboard|office hours?|supplemental instruction|\(si\) sessions?|study (session|hall)s?|sim(ulation)? lab|lab check ?off|open lab|practicum|tutoring|learning (hub|assistant|lounge)|staff lunch|food truck|synchronous virtual class|student success workshop|career resources|transfer fair|college night|try ?outs?|chapter meeting|general meeting|weekly meeting|club meeting|small group|bible study|rush|mentor event|pedagogy seminar|community builder|welcome back event|kickoff|mastermind|mock trial|destination fgcu|eagle fest|urecwell|[A-Z]{3}[ -]?\d{4}[A-Z]?)\b'
+    match: '\b(restricted|class lab|computer classroom|conference room|advising|orientation|registration deadline|final exam|midterm|faculty (meeting|senate)|student government|greek life|resume workshop|zoom|virtual only|office hours?|supplemental instruction|\(si\) sessions?|study (session|hall)s?|sim(ulation)? lab|lab check ?off|open lab|practicum|tutoring|learning (hub|assistant|lounge)|staff lunch|food truck|synchronous virtual class|student success workshop|career resources|transfer fair|college night|try ?outs?|chapter meeting|general meeting|weekly meeting|club meeting|small group|bible study|rush|mentor event|pedagogy seminar|community builder|welcome back event|kickoff|mastermind|mock trial|destination fgcu|eagle fest|urecwell|(?-i:[A-Z]{3})[ -]?\d{4}(?-i:[A-Z]?))\b'
   cost.long_drive:
     gloss: >-
       Distance. Applied by the matcher from `distance_mi`, not by regex: the
