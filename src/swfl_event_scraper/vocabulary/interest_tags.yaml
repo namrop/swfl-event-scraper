@@ -18,9 +18,19 @@
 # so alcohol-centred events are hard down-rated. That was found in the halo
 # and was absent from the lane's original brief.
 
-version: interest_tags.v1.3
+version: interest_tags.v1.4
 generated: 2026-09-09
 changelog:
+  - version: interest_tags.v1.4
+    at: 2026-09-09T23:25:00-04:00
+    why: >-
+      Campus by event type, hard. cost.campus_internal goes from a 2.5
+      down-rating to a hard exclusion and its match widens to the internal
+      programming the two college sources actually publish (office hours, SI
+      sessions, labs, tutoring, food trucks, org meetings, course codes).
+      Luis, 2026-09-09 23:11: "exclusion by event type is right for fgcu,
+      and we should wire that instead." The composer's exclusion by source
+      name is retired; public arts at campus venues now reach the paper.
   - version: interest_tags.v1.3
     at: 2026-09-09T19:55:00-04:00
     why: >-
@@ -401,13 +411,19 @@ costs:
     match: '\b(grand opening|ribbon.?cutting|chamber of commerce (mixer|luncheon)|networking (breakfast|luncheon)|business expo|franchise|dealership|timeshare)\b'
   cost.campus_internal:
     gloss: >-
-      College business that is not open to a household — classroom labs,
-      restricted rooms, student-org meetings, Zoom-only items. Down-rated hard
-      rather than excluded, per Luis's ruling that campus-only rows get low
-      ratings, not exclusion.
-    evidence: 20_digital_architecture/household_newspaper/source_audit_and_adjudications_2026-09-09.md
-    penalty: 2.5
-    match: '\b(restricted|class lab|computer classroom|conference room|advising|orientation|registration deadline|final exam|midterm|faculty (meeting|senate)|student government|greek life|resume workshop|zoom|virtual only|canvas|blackboard)\b'
+      College business that is not open to a household: office hours,
+      supplemental instruction and study sessions, labs and practica,
+      tutoring, staff lunches, food trucks, course-coded classes, student-org
+      meetings, rush, try-outs, career and transfer fairs, Zoom-only items.
+      v1.4: a hard exclusion, not a down-rating (Luis, 2026-09-09 23:11:
+      "exclusion by event type is right for fgcu, and we should wire that
+      instead"), which is what lets public arts events at campus venues
+      (gallery shows, window installations, public painting evenings) reach
+      the paper while the internal programming never does.
+    evidence: 20_digital_architecture/household_newspaper/issues/2026-09-10/manifest_2026-09-10.md
+    penalty: 5.0
+    hard: true
+    match: '\b(restricted|class lab|computer classroom|conference room|advising|orientation|registration deadline|final exam|midterm|faculty (meeting|senate)|student government|greek life|resume workshop|zoom|virtual only|canvas|blackboard|office hours?|supplemental instruction|\(si\) sessions?|study (session|hall)s?|sim(ulation)? lab|lab check ?off|open lab|practicum|tutoring|learning (hub|assistant|lounge)|staff lunch|food truck|synchronous virtual class|student success workshop|career resources|transfer fair|college night|try ?outs?|chapter meeting|general meeting|weekly meeting|club meeting|small group|bible study|rush|mentor event|pedagogy seminar|community builder|welcome back event|kickoff|mastermind|mock trial|destination fgcu|eagle fest|urecwell|[A-Z]{3}[ -]?\d{4}[A-Z]?)\b'
   cost.long_drive:
     gloss: >-
       Distance. Applied by the matcher from `distance_mi`, not by regex: the
