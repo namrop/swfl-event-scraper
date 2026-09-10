@@ -580,7 +580,7 @@ def parse_generic_jsonld_events(html: str, source_url: str, source_name: str = "
 # or RSS. The recovery lane got the data on 2026-09-09 through an Earthglass
 # Chrome lane on 40eridani — 496 occurrences, 127 titles — and the method is
 # written up at
-# 20_digital_architecture/household_newspaper/cape_coral_webtrac_recovery_2026-09-09.md.
+# 20_digital_architecture/the_masthead/cape_coral_webtrac_recovery_2026-09-09.md.
 #
 # This parser therefore takes a PRE-FETCHED dump rather than fetching. The
 # browser lane saves the calendar grid's HTML; this reads it. Nothing here

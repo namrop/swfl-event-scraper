@@ -23,7 +23,7 @@ from math import asin, cos, radians, sin, sqrt
 import re
 
 # Household origin. Source: the weather gridpoint constant in
-# 20_digital_architecture/household_newspaper/optical_foundry_profile_and_templating_ladder_2026-09-09.md §3.
+# 20_digital_architecture/the_masthead/optical_foundry_profile_and_templating_ladder_2026-09-09.md §3.
 HOME_LAT = 26.5629
 HOME_LON = -81.9495
 HOME_LABEL = "Cape Coral, FL (NWS gridpoint constant)"
