@@ -123,6 +123,18 @@ VENUES: dict[str, Place] = {
 }
 
 _VENUE_KEYS = sorted(VENUES, key=len, reverse=True)
+_CITY_KEYS = {key for key, place in VENUES.items() if key == place.city.lower()}
+
+# Number-anchored keys identify exact addresses, not ambiguous place names.
+# Keep them, and aliases that already include a suffix ("cultural park blvd"),
+# usable as venues. Only the name portion BEFORE a street suffix is excluded.
+_PLACE_NAMES = "|".join(re.escape(key) for key in _VENUE_KEYS if not re.search(r"\d", key))
+_STREET_NAMES_RE = re.compile(
+    rf"(?P<name>(?:{_PLACE_NAMES})(?:\s*[-–]\s*(?:{_PLACE_NAMES}))*)"
+    r"\s+(?:road|rd|blvd|boulevard|parkway|pkwy|avenue|ave|street|st|drive|dr|"
+    r"lane|ln|way|court|ct|highway|hwy|trail|terrace|circle)\b\.?",
+    re.I,
+)
 
 VIRTUAL_RE = re.compile(r"\b(zoom|online|virtual|webinar|teams meeting|livestream)\b", re.I)
 
@@ -134,7 +146,8 @@ def locate(
 ) -> dict[str, object]:
     """Place an event. Returns lat/lon/city/county/region/geo_precision.
 
-    Order: virtual → venue substring → source centroid → nothing.
+    Order: virtual → non-street matches → source centroid → nothing.
+    A final comma-separated city overrides a winning city match, not a venue.
     """
     text = (location or "").strip()
     if text and VIRTUAL_RE.search(text):
@@ -145,16 +158,28 @@ def locate(
         }
     low = text.lower()
     if low:
+        # Exclude nested names too: both "sanibel" and "captiva" are street
+        # mentions in "Sanibel-Captiva Road", not evidence of an island venue.
+        street_names = [match.span("name") for match in _STREET_NAMES_RE.finditer(low)]
+        matches = []
         for key in _VENUE_KEYS:
-            if key in low:
-                p = VENUES[key]
-                # A bare city key is a weaker claim than a named venue.
-                precision = "city" if p.city.lower() == key else "venue"
-                return {
-                    "lat": p.lat, "lon": p.lon, "city": p.city, "county": p.county,
-                    "region": p.region, "distance_mi": distance_from_home_mi(p.lat, p.lon),
-                    "geo_precision": precision,
-                }
+            for match in re.finditer(re.escape(key), low):
+                if not any(start <= match.start() and match.end() <= end for start, end in street_names):
+                    matches.append(key)
+                    break
+        final_city = low.rsplit(",", 1)[-1].strip() if "," in low else ""
+        if matches:
+            key = matches[0]
+            if key in _CITY_KEYS and final_city in _CITY_KEYS:
+                key = final_city
+            p = VENUES[key]
+            # A bare city key is a weaker claim than a named venue.
+            precision = "city" if key in _CITY_KEYS else "venue"
+            return {
+                "lat": p.lat, "lon": p.lon, "city": p.city, "county": p.county,
+                "region": p.region, "distance_mi": distance_from_home_mi(p.lat, p.lon),
+                "geo_precision": precision,
+            }
     if source_default is not None:
         p = source_default
         return {
