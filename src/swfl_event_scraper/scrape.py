@@ -4,8 +4,8 @@ import json
 import os
 import time
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Iterable
+from datetime import datetime, timedelta, timezone
+from typing import Any, Iterable
 from urllib.parse import quote
 
 import requests
@@ -14,9 +14,12 @@ import urllib3
 from .models import Event
 from .parsers import (
     enrich_event_from_civicengage_detail,
+    parse_breeze_article,
+    parse_breeze_feed,
     parse_capecoral_webtrac_grid_html,
     parse_capecoral_revize_events,
     parse_capecoral_webtrac_reader_markdown,
+    parse_evvnt_events,
     parse_fgcu_25live_events,
     parse_fort_myers_civicengage_events,
     parse_generic_jsonld_events,
@@ -205,6 +208,74 @@ def fetch_leegov_parks_month(year: int, month: int) -> dict[str, object]:
     return json.loads(response.json()["d"])
 
 
+# evvnt discovery publishers, keyed by the source's public calendar URL.
+EVVNT_PUBLISHERS: dict[str, int] = {
+    "https://www.floridaweekly.com/events/ft-myers/": 12336,  # "Fort Myers - Florida Weekly"
+}
+
+
+def fetch_evvnt_events(publisher_id: int, *, page_size: int = 100, max_pages: int = 25) -> dict[str, object]:
+    """Every upcoming event on an evvnt publisher calendar, page by page."""
+    events: list[dict[str, object]] = []
+    for page in range(max_pages):
+        if page:
+            time.sleep(1.0)
+        payload = fetch_json_lenient(
+            f"https://discovery.evvnt.com/api/publisher/{publisher_id}/home_page_events"
+            f"?hitsPerPage={page_size}&multipleEventInstances=true&page={page}&publisher_id={publisher_id}"
+        )
+        if not isinstance(payload, dict):
+            raise TypeError("evvnt API returned non-object payload")
+        batch = payload.get("rawEvents") or []
+        events.extend(batch)
+        if len(batch) < page_size:
+            break
+    return {"rawEvents": events}
+
+
+BREEZE_FEEDS = (
+    "https://www.capecoralbreeze.com/news/community-news/feed/",
+    "https://www.capecoralbreeze.com/news/community-news/feed/?paged=2",
+    "https://www.capecoralbreeze.com/lifestyles/local-lifestyles/feed/",
+)
+# Sections the lifestyles feed also carries that print dates without being
+# event listings (a fishing column's tide days, an obituary's service).
+BREEZE_SKIP_SECTIONS = ("/sports/", "/opinion/", "/obituaries/", "/letters-to-the-editor", "/editorials/")
+
+
+def breeze_article_wanted(link: str) -> bool:
+    return not any(section in link for section in BREEZE_SKIP_SECTIONS)
+
+
+def fetch_breeze_events(source: Source, *, days: int = 8) -> list[Event]:
+    """Articles the Breeze posted in the last `days` days, read for events.
+
+    The job runs Tuesday and Friday, so eight days covers the gap between
+    runs with a margin. Articles are fetched one at a time with the source's
+    crawl delay between them.
+    """
+    cutoff = datetime.now().date() - timedelta(days=days)
+    seen: set[str] = set()
+    articles: list[dict[str, Any]] = []
+    for feed_url in BREEZE_FEEDS:
+        for item in parse_breeze_feed(fetch_text(feed_url)):
+            link = str(item["link"])
+            published = item["published"]
+            if link in seen or published is None or published < cutoff or not breeze_article_wanted(link):
+                continue
+            seen.add(link)
+            articles.append(item)
+        time.sleep(source.crawl_delay_s)
+    events: list[Event] = []
+    for item in articles:
+        time.sleep(source.crawl_delay_s)
+        html = fetch_text(str(item["link"]))
+        events.extend(
+            parse_breeze_article(html, url=str(item["link"]), source_name=source.name, published=item["published"])
+        )
+    return events
+
+
 def scrape_source(source: Source) -> tuple[list[Event], str | None]:
     try:
         if source.parser == "capecoral_revize":
@@ -262,6 +333,14 @@ def scrape_source(source: Source) -> tuple[list[Event], str | None]:
         elif source.parser == "presence_events":
             payload = fetch_presence_events(source.url)
             events = parse_presence_events(payload, source_url=source.url, source_name=source.name)
+        elif source.parser == "evvnt_publisher":
+            payload = fetch_evvnt_events(EVVNT_PUBLISHERS[source.url])
+            events = parse_evvnt_events(payload, source_url=source.url, source_name=source.name)
+            # Same horizon as the Events Calendar adapter: through next year.
+            horizon = f"{datetime.now().year + 1}-12-31T23:59:59"
+            events = [event for event in events if event.start_datetime <= horizon]
+        elif source.parser == "breeze_community_feed":
+            events = fetch_breeze_events(source)
         elif source.parser in PENDING_PARSERS:
             # Source is intentionally tracked in the civic source map, but the v0
             # request-based adapter either needs browser rendering, a discovered

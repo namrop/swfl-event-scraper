@@ -113,6 +113,29 @@ Mann, Broadway Palm, Cultural Park Theatre, Laboratory Theater, Sidney & Berne
 Davis, Theatre Conspiracy, Gulfshore Playhouse, The Naples Players, Artis—Naples
 (robots.txt Disallow, honoured), Collier County Public Library, Eventbrite.
 
+### Sources added 2026-10-17 — the local newspapers
+
+Luis: "adding the newspaper to the event scraper. And add the cape coral breeze
+as well for events and news stories".
+
+- **Florida Weekly Fort Myers Events** (`evvnt_publisher`). The paper's online
+  calendar is an evvnt discovery widget, publisher 12336; the adapter reads the
+  widget's public JSON on `discovery.evvnt.com` (floridaweekly.com itself
+  answers plain clients with HTTP 429). Rows submitted to the paper and rows
+  evvnt backfills from Bandsintown, AXS, Ticketmaster and others are both kept;
+  backfilled rows carry `via_<source>` in their tags and category. Horizon:
+  through the end of next year, as for the Events Calendar adapter.
+- **Cape Coral Breeze Community Listings** (`breeze_community_feed`). No
+  calendar feed exists, so the adapter reads the community-news and
+  local-lifestyles RSS feeds for the last eight days, then each article, and
+  keeps occurrences only where the text gives a month and day. Roundups
+  ("Community Calendar", "This week at The Buck") split on their bold item
+  headings; each date takes the place named on its own line. Sports, opinion
+  and obituary URLs are skipped.
+
+Fixtures for both are real responses captured 2026-10-17
+(`tests/fixtures/`, `tests/test_newspaper_sources.py`).
+
 Cape Coral Parks WebTrac is now a `fetch: browser_lane` source: Cloudflare
 blocks every request client by fingerprint, so the adapter reads a grid dump
 produced by an Earthglass Chrome lane on 40eridani rather than fetching. Point

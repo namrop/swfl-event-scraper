@@ -674,3 +674,410 @@ def parse_capecoral_webtrac_grid_html(
                 )
             )
     return events
+
+
+# ---------------------------------------------------------------------------
+# Florida Weekly — the evvnt calendar behind floridaweekly.com/events
+# ---------------------------------------------------------------------------
+#
+# Added 2026-10-17 (Luis: "adding the newspaper to the event scraper").
+# Florida Weekly's online events calendar is an evvnt discovery widget,
+# publisher 12336 ("Fort Myers - Florida Weekly"). The widget reads a public
+# JSON endpoint on discovery.evvnt.com, which is what the adapter reads too;
+# floridaweekly.com itself rate-limits plain clients (HTTP 429).
+#
+# Rows come from two places, and every row says which in `sources`: events
+# submitted to the paper (`evvnt`) and evvnt's backfill from Bandsintown,
+# AXS, Ticketmaster, RunSignUp and others, which the paper has switched on
+# and shows on its own calendar. Backfilled rows are kept, tagged `via_<x>`
+# and labelled in the category, so the ledger can tell them apart.
+
+EVVNT_SOURCE_LABELS = {
+    "bandsintown": "Bandsintown",
+    "axs": "AXS",
+    "ticketmaster": "Ticketmaster",
+    "run_sign_up": "RunSignUp",
+    "active_network": "Active Network",
+    "event_vesta": "EventVesta",
+    "eventbrite": "Eventbrite",
+    "meetup": "Meetup",
+    "goldstar": "Goldstar",
+}
+
+
+def _local_naive(value: str | None) -> str | None:
+    text = clean_text(value)
+    if not text:
+        return None
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return parse_first_datetime(text)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(ZoneInfo("America/New_York")).replace(tzinfo=None)
+    return dt.isoformat(timespec="seconds")
+
+
+def _evvnt_prices(prices: Any) -> tuple[float | None, float | None]:
+    if not isinstance(prices, dict):
+        return None, None
+    amounts: list[float] = []
+    for value in prices.values():
+        match = re.search(r"(\d+(?:\.\d+)?)", str(value or ""))
+        if match:
+            amounts.append(float(match.group(1)))
+    if not amounts:
+        return None, None
+    return min(amounts), max(amounts)
+
+
+def parse_evvnt_events(payload: str | dict[str, Any], source_url: str, source_name: str) -> list[Event]:
+    data = json.loads(payload) if isinstance(payload, str) else payload
+    events: list[Event] = []
+    for item in data.get("rawEvents") or []:
+        title = clean_text(item.get("title"))
+        start = _local_naive(item.get("start_time"))
+        if not title or not start:
+            continue
+
+        venue = item.get("venue") or {}
+        if item.get("online_only"):
+            location = "Online"
+        else:
+            name = clean_text(venue.get("name"))
+            address = clean_text(venue.get("address_1"))
+            town = clean_text(venue.get("town"))
+            parts = [name]
+            if address and address != name:
+                parts.append(address)
+            parts.append(town)
+            location = ", ".join(part for part in parts if part) or None
+
+        upstream = [str(s) for s in item.get("sources") or [] if s and s != "evvnt"]
+        category = clean_text(item.get("category_name")) or None
+        if upstream:
+            via = ", ".join(EVVNT_SOURCE_LABELS.get(s, s) for s in upstream)
+            category = f"{category} · via {via}" if category else f"via {via}"
+
+        low, high = _evvnt_prices(item.get("prices"))
+        if low is None:
+            price_text = None
+            payment_required = None
+        elif high == 0:
+            price_text = "Free"
+            payment_required = False
+        else:
+            price_text = f"${low:g}" if low == high else f"${low:g}-${high:g}"
+            payment_required = True
+
+        description = clean_text(item.get("description")) or clean_text(item.get("summary")) or None
+        event = Event(
+            title=title,
+            raw_title=title,
+            start_datetime=start,
+            end_datetime=_local_naive(item.get("end_time")),
+            location=location,
+            source_url=clean_text(item.get("source_broadcast_url")) or source_url,
+            source_name=source_name,
+            category=category,
+            description=description,
+            source_event_id=clean_text(str(item.get("source_id_s") or item.get("source_id") or "")) or None,
+            interest_flags=["florida_weekly", *(f"via_{s}" for s in upstream)],
+            price_text=price_text,
+            price_amount_min=low,
+            price_amount_max=high,
+            price_currency="USD" if low is not None else None,
+            payment_required=payment_required,
+        )
+        event.apply_access_metadata(overwrite_unknown=True)
+        events.append(event)
+    return events
+
+
+# ---------------------------------------------------------------------------
+# Cape Coral Breeze — event announcements and community-calendar roundups
+# ---------------------------------------------------------------------------
+#
+# Added 2026-10-17 (Luis: "add the cape coral breeze as well for events and
+# news stories"). The Breeze has no calendar feed; it prints events as
+# community-news articles in a steady house style ("from 4 to 7 p.m.
+# Wednesday, Oct. 21, at Four Freedoms Park ... Four Freedoms Park is at 4818
+# Tarpon Court, Cape Coral."), either one event per article or a roundup of
+# items under bold headings ("Community Calendar | May 1", "This week at The
+# Buck"). The adapter reads the category RSS feeds for article links and then
+# each article's text.
+#
+# It only takes what the text states. An occurrence needs an explicit month
+# and day; a weekday on its own ("open house Monday") or a recurrence ("every
+# Thursday in May") yields nothing rather than a guessed date. A paragraph
+# after the first dated one counts as another occurrence only when it also
+# names a time, so a registration deadline is not mistaken for the event.
+
+_BREEZE_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+BREEZE_DATE_RE = re.compile(
+    r"\b(Jan(?:uary|\.)?|Feb(?:ruary|\.)?|March|Mar\.|April|Apr\.|May|June|July|Aug(?:ust|\.)?|"
+    r"Sept(?:ember|\.)?|Sep\.|Oct(?:ober|\.)?|Nov(?:ember|\.)?|Dec(?:ember|\.)?)\s+(\d{1,2})(?:st|nd|rd|th)?\b"
+    r"(?:,?\s+(\d{4}))?"
+)
+_MERIDIEM = r"(a\.m\.|p\.m\.|am\b|pm\b)"
+BREEZE_TIME_RANGE_RE = re.compile(
+    r"\b(\d{1,2})(?::(\d{2}))?\s*" + _MERIDIEM + r"?\s*(?:to|until|-|–|—)\s*(\d{1,2})(?::(\d{2}))?\s*" + _MERIDIEM,
+    re.I,
+)
+BREEZE_TIME_RE = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*" + _MERIDIEM, re.I)
+# "<Venue> is at <street number> <Street>, <City>." The address must open with
+# a street number and a capitalised word, so "The plunge is at 10 a.m." is not
+# read as a venue line.
+BREEZE_IS_AT_RE = re.compile(
+    r"^(?P<venue>[A-Z][^.]{2,90}?)\s+is\s+(?:located\s+)?at\s+(?P<addr>\d+\s+(?:[NSEW]\.?[NSEW]?\.?\s+)?[A-Z0-9].*?)\.?$"
+)
+# A place named after the date, up to the end of that sentence. A sentence
+# ends at a period followed by a capitalised word or the end of the text, so
+# "1401 S.E. 47th St., Cape Coral." stays whole; a period after a single
+# capital or a street abbreviation ("2691 N.E. Pine Island Road", "Blvd. S.")
+# does not end it.
+_ABBREV_LOOKBEHIND = (
+    r"(?<!\b[A-Z])(?<!\bSt)(?<!\bAve)(?<!\bBlvd)(?<!\bRd)(?<!\bDr)(?<!\bCt)(?<!\bPkwy)(?<!\bLn)(?<!\bFt)(?<!\bMt)"
+)
+BREEZE_AT_PLACE_RE = re.compile(
+    r"\bat\s+(?:the\s+)?(?P<place>(?:[A-Z]|\d+\s+[A-Z])(?:(?!" + _ABBREV_LOOKBEHIND + r"\.(?:\s+[A-Z][a-z]|\s*$))[^;])*)"
+)
+BREEZE_WEEKDAY_START_RE = re.compile(r"^(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day\b")
+BREEZE_CAPTION_RE = re.compile(r"\bPHOTOS?\b|\bPHOTO PROVIDED\b")
+BREEZE_SEPARATOR_RE = re.compile(r"^[\s\-–—*•_]+$")
+BREEZE_ZOOM_RE = re.compile(r"\b(?:via|on|over)\s+Zoom\b", re.I)
+BREEZE_MAX_DAYS_AHEAD = 200
+# A month/day earlier in the year than the article is read as next year only
+# when that lands soon after publication: a December article about a January
+# event, not a past date ("closed on March 3") pushed a year out.
+BREEZE_MAX_ROLLOVER_DAYS = 100
+
+
+def _hour24(hour: str, minute: str | None, meridiem: str | None) -> tuple[int, int]:
+    h = int(hour) % 12
+    if meridiem and meridiem.lower().startswith("p"):
+        h += 12
+    return h, int(minute or 0)
+
+
+def _breeze_times(text: str) -> tuple[tuple[int, int] | None, tuple[int, int] | None]:
+    match = BREEZE_TIME_RANGE_RE.search(text)
+    if match:
+        end_mer = match.group(6)
+        start_mer = match.group(3) or end_mer
+        start = _hour24(match.group(1), match.group(2), start_mer)
+        end = _hour24(match.group(4), match.group(5), end_mer)
+        if not match.group(3) and start > end:
+            start = _hour24(match.group(1), match.group(2), "a.m.")
+        return start, end
+    if re.search(r"\bnoon\b", text, re.I) and not BREEZE_TIME_RE.search(text):
+        return (12, 0), None
+    match = BREEZE_TIME_RE.search(text)
+    if match:
+        return _hour24(match.group(1), match.group(2), match.group(3)), None
+    return None, None
+
+
+def _breeze_date_match(text: str, published: date) -> tuple[date, int] | None:
+    """The first month/day in `text` as an upcoming date, and where it ends."""
+    match = BREEZE_DATE_RE.search(text)
+    if not match:
+        return None
+    month = _BREEZE_MONTHS[match.group(1)[:3].lower()]
+    day = int(match.group(2))
+    year = int(match.group(3)) if match.group(3) else published.year
+    try:
+        found = date(year, month, day)
+    except ValueError:
+        return None
+    if not match.group(3) and found < published - timedelta(days=60):
+        try:
+            found = date(year + 1, month, day)
+        except ValueError:
+            return None
+        if found > published + timedelta(days=BREEZE_MAX_ROLLOVER_DAYS):
+            return None
+    if found < published or found > published + timedelta(days=BREEZE_MAX_DAYS_AHEAD):
+        return None
+    return found, match.end()
+
+
+def _breeze_is_at(paragraph: str) -> str | None:
+    match = BREEZE_IS_AT_RE.match(paragraph)
+    if not match or "," not in match.group("addr"):
+        return None
+    venue = re.sub(r"^The\s+", "", match.group("venue").strip())
+    return f"{venue}, {match.group('addr').strip()}"
+
+
+def _breeze_at_place(paragraph: str) -> str | None:
+    for match in BREEZE_AT_PLACE_RE.finditer(paragraph):
+        place = match.group("place").strip().rstrip(",.").strip()
+        if 3 <= len(place) <= 120:
+            return place
+    return None
+
+
+def _same_place(place: str, venue_line: str) -> bool:
+    """Whether an "at <place>" mention and an "<X> is at <address>" line name one venue."""
+    name = venue_line.split(",", 1)[0].strip().lower()
+    low = place.lower()
+    return bool(name) and (name in low or low.split(",", 1)[0].strip() in name)
+
+
+def _breeze_paragraphs(soup: BeautifulSoup) -> list[tuple[str, bool]]:
+    """(text, is_bold_line) for each non-empty paragraph of the article body."""
+    body = soup.find(id="article_content_wrap") or soup.find("article") or soup
+    out: list[tuple[str, bool]] = []
+    for p in body.find_all("p"):
+        text = clean_text(p.get_text(" "))
+        if not text or text.startswith("Copyright ©"):
+            continue
+        strong = p.find(["strong", "b"])
+        bold = bool(strong) and clean_text(strong.get_text(" ")) == text
+        out.append((text, bold))
+    return out
+
+
+def _breeze_is_heading(text: str, bold: bool) -> bool:
+    return (
+        bold
+        and 4 <= len(text) <= 160
+        and not text[0].isdigit()
+        and not BREEZE_WEEKDAY_START_RE.match(text)
+        and not BREEZE_DATE_RE.match(text)
+        and "Admission" not in text
+    )
+
+
+def parse_breeze_feed(xml: str) -> list[dict[str, Any]]:
+    soup = BeautifulSoup(xml, "xml")
+    items: list[dict[str, Any]] = []
+    for item in soup.find_all("item"):
+        link = clean_text(item.link.get_text() if item.link else "")
+        if not link:
+            continue
+        published = None
+        if item.pubDate:
+            try:
+                published = date_parser.parse(item.pubDate.get_text()).date()
+            except (ValueError, OverflowError):
+                published = None
+        items.append({
+            "title": clean_text(item.title.get_text() if item.title else ""),
+            "link": link,
+            "published": published,
+        })
+    return items
+
+
+def parse_breeze_article(
+    html: str,
+    url: str,
+    source_name: str,
+    published: date | None = None,
+) -> list[Event]:
+    soup = BeautifulSoup(html, "html.parser")
+    h1 = soup.find("h1")
+    headline = clean_text(h1.get_text(" ")) if h1 else ""
+    if published is None:
+        meta = soup.find(id="single_meta")
+        stamp = meta.find("time") if meta else None
+        if stamp is not None:
+            try:
+                published = date_parser.parse(stamp.get_text()).date()
+            except (ValueError, OverflowError):
+                published = None
+    if published is None:
+        return []
+
+    paragraphs = [
+        (text, bold) for text, bold in _breeze_paragraphs(soup)
+        if not BREEZE_SEPARATOR_RE.match(text) and not BREEZE_CAPTION_RE.search(text)
+    ]
+
+    # Article-wide venue: an "X is at <address>." line, or a bold name line
+    # followed by a bold address line (the venue footer of a schedule).
+    article_venue = None
+    for text, _bold in paragraphs:
+        article_venue = article_venue or _breeze_is_at(text)
+    if article_venue is None:
+        for (name, name_bold), (addr, addr_bold) in zip(paragraphs, paragraphs[1:]):
+            if name_bold and addr_bold and not name[0].isdigit() and addr[0].isdigit() and "," in addr:
+                article_venue = f"{name}, {addr}"
+                break
+
+    heads = [i for i, (text, bold) in enumerate(paragraphs) if _breeze_is_heading(text, bold)]
+    if len(heads) >= 2:
+        # A roundup: each bold heading opens an item; text before the first
+        # heading is the article's own introduction and is not an event.
+        bounds = list(zip(heads, heads[1:] + [len(paragraphs)]))
+        items = [(paragraphs[a][0], [t for t, _b in paragraphs[a + 1 : b]]) for a, b in bounds]
+    else:
+        items = [(headline, [t for t, _b in paragraphs])]
+
+    slug = url.rstrip("/").rsplit("/", 1)[-1]
+    events: list[Event] = []
+    for index, (title, texts) in enumerate(items):
+        if not title or not texts:
+            continue
+        item_text = " ".join(texts)
+        venue_line = None
+        for text in texts:
+            venue_line = venue_line or _breeze_is_at(text)
+
+        occurrences: list[tuple[date, tuple[int, int] | None, tuple[int, int] | None, str | None]] = []
+        seen: set[date] = set()
+        for position, text in enumerate(texts):
+            dated = _breeze_date_match(text, published)
+            if dated is None or dated[0] in seen:
+                continue
+            day, date_end = dated
+            start, end = _breeze_times(text)
+            if occurrences and start is None:
+                continue
+            if start is None:
+                start, end = _breeze_times(" ".join(texts[position + 1 :]))
+            seen.add(day)
+            occurrences.append((day, start, end, _breeze_at_place(text[date_end:])))
+        if not occurrences:
+            continue
+
+        # Where each occurrence happens: the place its own line names (or the
+        # item's "X is at <address>" line when that is the same place, being
+        # fuller); else the item's venue line; else the first place any
+        # occurrence named; else Zoom; else the article's venue footer.
+        first_place = next((occ[3] for occ in occurrences if occ[3]), None)
+        fallback = venue_line or first_place
+        if fallback is None and BREEZE_ZOOM_RE.search(item_text):
+            fallback = "Online (Zoom)"
+        fallback = fallback or article_venue
+
+        for day, start, end, place in occurrences:
+            if place and venue_line:
+                location = venue_line if _same_place(place, venue_line) else place
+            else:
+                location = place or fallback
+            start_dt = datetime(day.year, day.month, day.day, *(start or (0, 0)))
+            end_dt = datetime(day.year, day.month, day.day, *end) if end else None
+            if end_dt and end_dt < start_dt:
+                end_dt += timedelta(days=1)
+            event = Event(
+                title=title,
+                raw_title=title,
+                start_datetime=start_dt.isoformat(timespec="seconds"),
+                end_datetime=end_dt.isoformat(timespec="seconds") if end_dt else None,
+                location=location,
+                source_url=url,
+                source_name=source_name,
+                category="Community listing",
+                description=item_text[:900] or None,
+                source_event_id=f"{slug}#{index}",
+                interest_flags=["cape_coral_breeze"],
+            )
+            event.apply_access_metadata(overwrite_unknown=True)
+            events.append(event)
+    return events

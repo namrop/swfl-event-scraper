@@ -1,0 +1,92 @@
+{
+ "rawEvents": [
+  {
+   "title": "Lee County's Red Ribbon Award Celebration",
+   "summary": "Honoring Lee County's Outstanding Drug-Free Students",
+   "links": {},
+   "prices": {},
+   "sources": [
+    "evvnt"
+   ],
+   "category_name": "Local / Community",
+   "source_id_s": "3871764",
+   "online_only": false,
+   "source_broadcast_url": "https://www.floridaweekly.com/events/ft-myers/?_evDiscoveryPath=/event/3871764-lee-county-s-red-ribbon-award-celebration",
+   "description": "FORT MYERS, Fla. — Jonathan Engh, Chair of the Board of Thrive Lee, The Lee County Coalition for a\nDrug-Free Southwest Florida, has announced that Lee County’s Annual Red Ribbon Award Ceremony\nwill take place on Monday, October 26, 2026, at 6:30 p.m. at the Collaboratory, 2031 Jackson\nStreet, Fort Myers, Florida.\nThe event is free and open to the public and will recognize outstanding drug-free students for their\nachievements, leadership, and service.\nWith special guests Cathy Oerter and Jim Nathan, the ceremony will feature the Al Oerter Award for\nAcademic and Athletic Excellence, the Lee Coun",
+   "start_time": "2026-10-26T18:30:00-04:00",
+   "end_time": "2026-10-26T20:00:00-04:00",
+   "venue": {
+    "name": "Collaboratory",
+    "address_1": "2031 Jackson Street",
+    "address_2": null,
+    "town": "Fort Myers",
+    "country": "United States",
+    "post_code": "33901",
+    "latitude": 26.639987,
+    "longitude": -81.866076
+   },
+   "objectID": "44840217"
+  },
+  {
+   "title": "Fort Myers Official Halloween Bar Crawl 2026",
+   "summary": "Explore top local bars, enjoy exclusive specials, and celebrate Halloween this October 31, 2026 with fellow partygoers across the city!",
+   "links": {
+    "Tickets": "https://go.evvnt.com/3865229-0"
+   },
+   "prices": {
+    "General Admission :: Check-in The Firestone Skybar 3pm-7pm": "USD 14.99",
+    "Group of 4": "USD 10.99"
+   },
+   "sources": [
+    "evvnt"
+   ],
+   "category_name": "Bars / Pubs",
+   "source_id_s": "3865229",
+   "online_only": false,
+   "source_broadcast_url": "https://evvnt.com/events/?_evDiscoveryPath=/event/3865229-fort-myers-official-halloween-bar-crawl-2026",
+   "description": "Fort Myers Official Halloween Bar Crawl 2026 🎃\nGet ready for the Official Halloween Bar Crawl on Saturday, October 31st, 2026! Celebrate Halloween night by bar hopping through top local venues alongside hundreds of costumed partygoers. Expect spooky drink specials, packed dance floors, and nonstop Halloween energy all night long.\nWhether you’re going spooky, sexy, funny, or full-on creative, this is the Halloween event you don’t want to miss in 2026. Grab your crew, dress to impress (or terrify), and get ready for an unforgettable night out.\n\nWhat’s included with the Fort Myers Halloween Bar C",
+   "start_time": "2026-10-31T15:00:00-04:00",
+   "end_time": "2026-10-31T22:00:00-04:00",
+   "venue": {
+    "name": "The Firestone Skybar & Martini Bar",
+    "address_1": "2224 Bay Street",
+    "address_2": null,
+    "town": "Fort Myers",
+    "country": "United States",
+    "post_code": "33901",
+    "latitude": 26.6447549,
+    "longitude": -81.8703264
+   },
+   "objectID": "44784450"
+  },
+  {
+   "title": "Matt Walden",
+   "summary": null,
+   "links": {
+    "Website": "https://www.bandsintown.com/e/109004338?app_id=y5t04gz269&came_from=287&utm_medium=api&utm_source=partner_api&utm_campaign=event"
+   },
+   "prices": null,
+   "sources": [
+    "bandsintown"
+   ],
+   "category_name": "Pop",
+   "source_id_s": "109004338",
+   "online_only": false,
+   "source_broadcast_url": null,
+   "description": "‘Matt & Zack’ are playing the Oktoberfest at FM Brew from 3-6pm! Come hang out and catch us for a few hours of fun Singer/Songwriter",
+   "start_time": "2026-10-18T15:00:00-04:00",
+   "end_time": "2026-10-18T19:00:00-04:00",
+   "venue": {
+    "name": "Fort Myers Brewing Company",
+    "address_1": "12811 Commerce Lakes Dr #28",
+    "address_2": null,
+    "town": "Fort Myers",
+    "country": "United States",
+    "post_code": null,
+    "latitude": 26.562066,
+    "longitude": -81.74328
+   },
+   "objectID": "44773755"
+  }
+ ]
+}

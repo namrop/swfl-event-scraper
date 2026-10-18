@@ -202,6 +202,50 @@ SOURCES: tuple[Source, ...] = (
         default_lon=-81.8723,
     ),
     # ------------------------------------------------------------------
+    # Local newspapers, added 2026-10-17. Luis, after photographing the
+    # Florida Weekly's A&E pages: "a good source for event mining in
+    # general", then "adding the newspaper to the event scraper. And add
+    # the cape coral breeze as well for events and news stories".
+    # ------------------------------------------------------------------
+    Source(
+        name="Florida Weekly Fort Myers Events",
+        url="https://www.floridaweekly.com/events/ft-myers/",
+        kind=SourceKind.AGGREGATOR,
+        parser="evvnt_publisher",
+        notes=(
+            "The Fort Myers edition's online events calendar (the paper's 'Events' section, where "
+            "listings are submitted). It is an evvnt discovery widget, publisher 12336; the adapter reads "
+            "the widget's public JSON on discovery.evvnt.com, because floridaweekly.com rate-limits plain "
+            "clients (HTTP 429). Holds both events submitted to the paper and evvnt backfill the paper has "
+            "switched on (Bandsintown, AXS, Ticketmaster, RunSignUp, Active Network, EventVesta); each "
+            "backfilled row is tagged via_<source> and labelled in its category. On 2026-10-17 the calendar "
+            "held 1,229 events, 9 of them submitted directly. The weekly print column ('What to do, Where "
+            "to go') is a separate article and is not read here."
+        ),
+        county="Lee",
+        default_lat=26.6406,
+        default_lon=-81.8723,
+        robots_note="discovery.evvnt.com publishes no robots.txt (S3 AccessDenied); paged at 1 s.",
+    ),
+    Source(
+        name="Cape Coral Breeze Community Listings",
+        url="https://www.capecoralbreeze.com/news/community-news/",
+        kind=SourceKind.AGGREGATOR,
+        parser="breeze_community_feed",
+        notes=(
+            "The Breeze has no calendar or events feed and its WordPress REST API is disabled; it prints "
+            "events as community-news articles (one event each, or a roundup such as 'Community Calendar' "
+            "and 'This week at The Buck'). The adapter reads the community-news and local-lifestyles RSS "
+            "feeds for the last eight days of article links, then each article's text, and keeps only "
+            "occurrences with an explicit month and day; a bare weekday or a recurrence yields nothing."
+        ),
+        county="Lee",
+        default_lat=26.6294,
+        default_lon=-81.986,
+        crawl_delay_s=2.0,
+        robots_note="robots.txt allows the feeds and articles; no Crawl-delay declared. 2 s used.",
+    ),
+    # ------------------------------------------------------------------
     # Theatre and arts venues, added 2026-09-09 for the household event
     # ledger (Luis, 18:54 EDT: "local plays at the various theatres are
     # something I would want to know about"). Eleven venues were probed; the
