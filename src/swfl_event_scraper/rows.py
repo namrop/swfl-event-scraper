@@ -118,6 +118,7 @@ def build_candidate(
     source_default: Place | None,
     source_noisy: bool = False,
     implied_tags: tuple[str, ...] = (),
+    curated_by: str | None = None,
 ) -> dict[str, Any]:
     title = scrub(title) or "(untitled)"
     venue = scrub(venue)
@@ -139,6 +140,7 @@ def build_candidate(
         price_min=price_min,
         price_text=price_text,
         implied_tags=implied_tags,
+        curated_by=curated_by,
     )
 
     return {
@@ -212,6 +214,7 @@ def candidate_from_event(event, source) -> dict[str, Any]:
         source_default=source.default_place(),
         source_noisy=(source.kind.value == "ticketed"),
         implied_tags=source.implied_tags,
+        curated_by=source.curated_by,
     )
 
 

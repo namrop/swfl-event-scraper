@@ -136,6 +136,28 @@ as well for events and news stories".
 Fixtures for both are real responses captured 2026-10-17
 (`tests/fixtures/`, `tests/test_newspaper_sources.py`).
 
+### Added 2026-10-18 — the Florida Weekly column, and curated sources
+
+Luis: "I want that article read. those are curated events from a person.
+worth rating higher."
+
+- **Florida Weekly — What to do, where to go** (`fw_column`). The weekly arts
+  and entertainment column, by Florida Weekly staff, published Tuesday evening
+  for Wednesday to Tuesday. The adapter reads the column's section page for the
+  newest article headlined "What to do, where to go", then that article: two
+  requests 70 s apart, because floridaweekly.com answers HTTP 429 above about
+  one a minute. A listing under a day heading takes that date (a bare date when
+  no time is given); an Ongoing listing gives a row per stated date range and
+  nothing for a recurrence or an end-date-only run; Top Picks tag their listing
+  (`fw_top_pick`) or stand on their own date.
+- **Curation.** A source may set `curated_by` when its listings are a person's
+  picks. Each row then gets `curation.weight` from the vocabulary (1.0 in
+  `interest_tags.v1.7`) and its `rating_reason` says "picked by ...". Hard costs
+  still floor the row. Only the column sets it; the evvnt calendar does not.
+
+Fixtures: the 2026-09-29 and 2026-10-13 columns and the section page
+(`tests/test_fw_column.py`).
+
 Cape Coral Parks WebTrac is now a `fetch: browser_lane` source: Cloudflare
 blocks every request client by fingerprint, so the adapter reads a grid dump
 produced by an Earthglass Chrome lane on 40eridani rather than fetching. Point

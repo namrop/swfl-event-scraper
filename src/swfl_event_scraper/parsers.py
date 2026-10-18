@@ -1081,3 +1081,291 @@ def parse_breeze_article(
             event.apply_access_metadata(overwrite_unknown=True)
             events.append(event)
     return events
+
+
+# ---------------------------------------------------------------------------
+# Florida Weekly — "What to do, where to go", the weekly column
+# ---------------------------------------------------------------------------
+#
+# Added 2026-10-18. Luis: "I want that article read. those are curated events
+# from a person. worth rating higher." The column is published each Tuesday
+# by Florida Weekly staff and covers Wednesday to Tuesday: a few Top Picks
+# ("10/16 - Title – ..."), then one heading per day ("WEDNESDAY 10.14" or, in
+# older weeks, "WEDNESDAY 9/30"), then ONGOING. Every listing is one paragraph
+# in a fixed house style:
+#
+#   <Title> – <Kind> at <Venue> at <time>. <Description>. Tickets start at
+#   $<n>. <street address>, <City>. <phone> or <website> .
+#
+# The column's section page (fort-myers/arts-entertainment/what-to-do-where-
+# to-go/) links the newest column under the headline "What to do, where to
+# go"; the article's own title changes every week, so the index is read by
+# that headline, not by URL.
+#
+# As with the Breeze, only what the text states is kept. A listing under a
+# day heading takes that date; with no time it stays a bare date. An ONGOING
+# listing yields a row per stated range ("available Oct. 16-18 & Oct. 23-25")
+# and nothing for a recurrence ("every Sunday") or a run with only an end
+# ("through Oct. 25"). A Top Pick tags the listing it matches; one that
+# matches no row stands on its own date. Photo captions have no " – " and
+# are skipped.
+
+FW_COLUMN_HEADLINE_RE = re.compile(r"^\s*what to do,?\s+where to go\s*$", re.I)
+_FW_DAY_RE = re.compile(r"^(?:MON|TUES|WEDNES|THURS|FRI|SATUR|SUN)DAY\s+(\d{1,2})\s*[./]\s*(\d{1,2})$", re.I)
+_FW_PICK_RE = re.compile(r"^(\d{1,2})/(\d{1,2})\s*-\s*(.+)$")
+_FW_TITLE_SEP_RE = re.compile(r"\s+[–—]\s+")
+_FW_TIME = r"\d{1,2}(?::\d{2})?\s*[ap]\.m\.?"
+_FW_TIME_RE = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*([ap])\.m\.?")
+_FW_AT_TIME_RE = re.compile(
+    r"^(?P<lead>.*?)(?:^|\s)(?:[Aa]t|in)\s+(?P<venue>.+?),?\s+at\s+(?P<t1>" + _FW_TIME + r")"
+)
+_FW_AT_PLACE_RE = re.compile(
+    r"^(?P<lead>.*?)(?:^|\s)(?:[Aa]t|in)\s+(?P<venue>.+?)"
+    r"(?=\s+(?:with|available|every|through|on display|from)\b"
+    r"|\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d|,\s|$)"
+)
+# A sentence ends at a period before a capital, except after a single
+# capital ("U. Tobe Recital Hall"), a street or month abbreviation.
+_FW_SENTENCE_END_RE = re.compile(
+    r"(?<!\b[A-Z])(?<!\bSt)(?<!\bMt)(?<!\bFt)(?<!\bDr)(?<!\bAve)(?<!\bBlvd)(?<!\bRd)(?<!\bBldg)"
+    r"(?<!\bJan)(?<!\bFeb)(?<!\bMar)(?<!\bApr)(?<!\bAug)(?<!\bSep)(?<!\bSept)(?<!\bOct)(?<!\bNov)(?<!\bDec)"
+    r"\.\s+(?=[A-Z“\"])"
+)
+_FW_MONTH = r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?"
+_FW_RANGE_RE = re.compile(
+    r"\b" + _FW_MONTH + r"\s+(\d{1,2})\s*[-–]\s*(?:" + _FW_MONTH + r"\s+)?(\d{1,2})\b(?:,?\s+(\d{4}))?"
+)
+_FW_CITY_RE = re.compile(
+    r",\s*(?P<city>Fort Myers Beach|North Fort Myers|Fort Myers|Cape Coral|Bonita Springs|Estero|Sanibel|"
+    r"Captiva|Naples|Marco Island|Punta Gorda|Port Charlotte|Lehigh Acres|Pine Island|Matlacha|Bokeelia|"
+    r"St\. James City|Alva|Immokalee|LaBelle|Labelle|Englewood|Boca Grande|Babcock Ranch)\s*\.(?=\s|$)"
+)
+_FW_PRICE_RE = re.compile(
+    r"\b(?:Tickets|Registration|Admission|Entry)\s+(?P<verb>starts?\s+at|are|is|from)\s+\$(?P<amount>\d[\d,]*(?:\.\d+)?)",
+    re.I,
+)
+_FW_FREE_RE = re.compile(r"\b(?:Tickets|Admission|Entry)\s+(?:are|is)\s+free\b|\bfree[- ]to[- ]attend\b|\bfree admission\b", re.I)
+
+
+def _fw_norm(title: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", title.lower()).strip()
+
+
+def _fw_date(month: int, day: int, published: date) -> date | None:
+    try:
+        found = date(published.year, month, day)
+    except ValueError:
+        return None
+    if found < published - timedelta(days=120):
+        try:
+            found = date(published.year + 1, month, day)
+        except ValueError:
+            return None
+    return found
+
+
+def _fw_split_head(text: str) -> tuple[str, str]:
+    """The listing's first sentence (kind, venue, time) and the rest."""
+    match = _FW_SENTENCE_END_RE.search(text)
+    if not match:
+        return text.rstrip(" ."), ""
+    return text[: match.start()].strip(), text[match.end():].strip()
+
+
+def _fw_address(rest: str) -> tuple[str | None, str | None, str]:
+    """(street address, city, description) from what follows the first sentence."""
+    matches = list(_FW_CITY_RE.finditer(rest))
+    if not matches:
+        return None, None, rest.strip()
+    city = matches[-1]
+    segment = rest[: city.start()]
+    numbered = [m.end() for m in re.finditer(r"(?:^|[.!?]\s+)(?=\d)", segment)]
+    if numbered:
+        start = numbered[-1]
+    else:
+        sentences = [m.end() for m in _FW_SENTENCE_END_RE.finditer(segment)]
+        start = sentences[-1] if sentences else 0
+    address = segment[start:].strip().rstrip(",")
+    if not address or len(address) > 120:
+        return None, city.group("city"), segment.strip()
+    return address, city.group("city"), segment[:start].strip()
+
+
+def _fw_price(text: str, lead: str) -> tuple[str | None, float | None, float | None, bool | None]:
+    match = _FW_PRICE_RE.search(text)
+    if match:
+        amount = float(match.group("amount").replace(",", ""))
+        if match.group("verb").lower() in {"are", "is"}:
+            return f"${amount:g}", amount, amount, True
+        return f"From ${amount:g}", amount, None, True
+    if _FW_FREE_RE.search(text) or lead.lower().startswith("free "):
+        return "Free", 0.0, 0.0, False
+    return None, None, None, None
+
+
+def parse_fw_column_index(html: str, base_url: str) -> list[str]:
+    """Column article URLs on the section page, newest first, as linked."""
+    soup = BeautifulSoup(html, "html.parser")
+    links: list[str] = []
+    for anchor in soup.select('a[href*="/article_"]'):
+        if not FW_COLUMN_HEADLINE_RE.match(clean_text(anchor.get_text(" "))):
+            continue
+        url = urljoin(base_url, str(anchor.get("href") or "").split("#", 1)[0])
+        if url not in links:
+            links.append(url)
+    return links
+
+
+def _fw_blocks(soup: BeautifulSoup) -> list[str]:
+    body = soup.select_one("#article-body") or soup.find("article") or soup
+    texts: list[str] = []
+    for el in body.find_all(["h2", "h3", "h4", "p", "li"]):
+        if el.name == "p" and el.find_parent("li") is not None:
+            continue  # the same text as its list item
+        text = clean_text(el.get_text(" "))
+        if text and (not texts or texts[-1] != text):
+            texts.append(text)
+    return texts
+
+
+def parse_fw_column_article(html: str, url: str, source_name: str) -> list[Event]:
+    soup = BeautifulSoup(html, "html.parser")
+    stamp = soup.select_one("time[datetime]")
+    try:
+        published = date_parser.parse(str(stamp.get("datetime"))).date() if stamp else None
+    except (ValueError, OverflowError):
+        published = None
+    if published is None:
+        return []
+    key_match = re.search(r"article_([0-9a-f-]+)\.html", url)
+    article_key = key_match.group(1) if key_match else url
+
+    def build(title: str, head: str, rest: str, start: str, end: str | None, venue: str, lead: str) -> Event:
+        venue = re.sub(r"^the\s+", "", venue.strip().rstrip(","))
+        address, city, description = _fw_address(rest)
+        parts = [venue]
+        if address and address.lower() not in venue.lower():
+            parts.append(address)
+        # The city closes the address; with no street address it is added only
+        # when the venue does not already end with it.
+        if city and (len(parts) > 1 or not venue.lower().endswith(city.lower())):
+            parts.append(city)
+        price_text, low, high, paid = _fw_price(" ".join((head, description)), lead)
+        event = Event(
+            title=title,
+            raw_title=title,
+            start_datetime=start,
+            end_datetime=end,
+            location=", ".join(p for p in parts if p) or None,
+            source_url=url,
+            source_name=source_name,
+            category=(lead[:1].upper() + lead[1:]) if lead else None,
+            description=(description or head)[:900] or None,
+            source_event_id=f"{article_key}:{_fw_norm(title).replace(' ', '-')}:{start[:10]}",
+            interest_flags=["florida_weekly", "fw_column"],
+            price_text=price_text,
+            price_amount_min=low,
+            price_amount_max=high,
+            price_currency="USD" if low is not None else None,
+            payment_required=paid,
+        )
+        event.apply_access_metadata(overwrite_unknown=True)
+        # "Tickets start at $76" states a floor, not a ceiling; the generic
+        # inference above would copy the floor into the maximum.
+        if low is not None:
+            event.price_amount_min, event.price_amount_max = low, high
+        return event
+
+    def dated(title: str, text: str, day: date) -> Event | None:
+        head, rest = _fw_split_head(text)
+        timed = _FW_AT_TIME_RE.match(head)
+        if timed and len(timed.group("venue")) <= 100:
+            tm = _FW_TIME_RE.match(timed.group("t1"))
+            assert tm is not None
+            hour, minute = _hour24(tm.group(1), tm.group(2), tm.group(3))
+            start = f"{day.isoformat()}T{hour:02d}:{minute:02d}:00"
+            return build(title, head, rest, start, None, timed.group("venue"), timed.group("lead").strip())
+        placed = _FW_AT_PLACE_RE.match(head)
+        if placed and len(placed.group("venue")) <= 100:
+            return build(title, head, rest, day.isoformat(), None, placed.group("venue"), placed.group("lead").strip())
+        return None
+
+    def ongoing(title: str, text: str) -> list[Event]:
+        head, rest = _fw_split_head(text)
+        if re.search(r"\bevery\b", head, re.I):
+            return []
+        placed = _FW_AT_PLACE_RE.match(head)
+        if not placed or len(placed.group("venue")) > 100:
+            return []
+        out: list[Event] = []
+        for rng in _FW_RANGE_RE.finditer(head):
+            m1 = _BREEZE_MONTHS[rng.group(1)[:3].lower()]
+            m2 = _BREEZE_MONTHS[(rng.group(3) or rng.group(1))[:3].lower()]
+            first = _fw_date(m1, int(rng.group(2)), published)
+            if first is None:
+                continue
+            try:
+                last = date(int(rng.group(5)) if rng.group(5) else first.year, m2, int(rng.group(4)))
+            except ValueError:
+                continue
+            if last < first:
+                try:
+                    last = date(last.year + 1, last.month, last.day)
+                except ValueError:
+                    continue
+            out.append(build(title, head, rest, first.isoformat(), last.isoformat(), placed.group("venue"),
+                             placed.group("lead").strip()))
+        return out
+
+    events: list[Event] = []
+    picks: list[tuple[str, str, date]] = []
+    section = "preamble"
+    day: date | None = None
+    for text in _fw_blocks(soup):
+        heading = _FW_DAY_RE.match(text)
+        if heading:
+            section, day = "day", _fw_date(int(heading.group(1)), int(heading.group(2)), published)
+            continue
+        upper = text.upper()
+        if upper == "ONGOING":
+            section, day = "ongoing", None
+            continue
+        if upper == "TOP PICKS":
+            section = "picks"
+            continue
+        pick = _FW_PICK_RE.match(text)
+        if pick and section in {"preamble", "picks"}:
+            split = _FW_TITLE_SEP_RE.split(pick.group(3), maxsplit=1)
+            on = _fw_date(int(pick.group(1)), int(pick.group(2)), published)
+            if len(split) == 2 and on is not None:
+                picks.append((split[0].strip(), split[1].strip(), on))
+            continue
+        split = _FW_TITLE_SEP_RE.split(text, maxsplit=1)
+        if len(split) != 2 or not split[0].strip() or len(split[0]) > 160:
+            continue  # a photo caption or a stray line
+        title, body = split[0].strip(), split[1].strip()
+        if section == "day" and day is not None:
+            event = dated(title, body, day)
+            if event is not None:
+                events.append(event)
+        elif section == "ongoing":
+            events.extend(ongoing(title, body))
+
+    for title, body, on in picks:
+        matching = [e for e in events if _fw_norm(e.title) == _fw_norm(title)]
+        if not matching:
+            event = dated(title, body, on)
+            matching = [event] if event is not None else []
+            events.extend(matching)
+        for event in matching:
+            if "fw_top_pick" not in event.interest_flags:
+                event.interest_flags.append("fw_top_pick")
+
+    unique: list[Event] = []
+    seen: set[tuple[str, str]] = set()
+    for event in events:
+        key = (_fw_norm(event.title), event.start_datetime)
+        if key not in seen:
+            seen.add(key)
+            unique.append(event)
+    return unique

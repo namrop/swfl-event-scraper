@@ -91,6 +91,7 @@ def rate(
     price_min: float | None = None,
     price_text: str | None = None,
     implied_tags: tuple[str, ...] | list[str] | None = None,
+    curated_by: str | None = None,
 ) -> Rated:
     tag_specs, cost_specs = _compiled()
     # Two haystacks. `event_text` is the event's own words; `all` adds the place
@@ -165,7 +166,14 @@ def rate(
     hard = any(h[2] for h in cost_hits)
     cost_total = sum(h[1] for h in cost_hits)
 
-    score = BASE_RATING + tag_score + dist_penalty + access_bonus - cost_total
+    # A person's pick (the source's `curated_by`) adds the vocabulary's
+    # curation weight. Applied before the hard-cost floor, so a pick never
+    # lifts a hard exclusion.
+    curation_bonus = 0.0
+    if curated_by:
+        curation_bonus = float((load_vocabulary().get("curation") or {}).get("weight", 0.0))
+
+    score = BASE_RATING + tag_score + dist_penalty + access_bonus + curation_bonus - cost_total
     if hard:
         score = min(score, 0.5)
     rating = round(max(0.0, min(5.0, score)), 1)
@@ -181,6 +189,8 @@ def rate(
         reason += f" ({distance_mi:g} mi, {geo_precision})"
     if access_notes:
         reason += "; " + " and ".join(access_notes)
+    if curation_bonus:
+        reason += f"; picked by {curated_by}"
     if cost_hits:
         reason += "; down-rated for " + ", ".join(n for n, _, _ in cost_hits)
     if hard:

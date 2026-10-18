@@ -22,6 +22,8 @@ from .parsers import (
     parse_evvnt_events,
     parse_fgcu_25live_events,
     parse_fort_myers_civicengage_events,
+    parse_fw_column_article,
+    parse_fw_column_index,
     parse_generic_jsonld_events,
     parse_leegov_parks_events,
     parse_librarymarket_events,
@@ -276,6 +278,26 @@ def fetch_breeze_events(source: Source, *, days: int = 8) -> list[Event]:
     return events
 
 
+def fetch_fw_column_events(source: Source, *, articles: int = 1) -> list[Event]:
+    """The newest "What to do, where to go" column, read listing by listing.
+
+    floridaweekly.com answers about one request a minute to a plain client
+    (HTTP 429 beyond that), so this is two requests, `crawl_delay_s` apart:
+    the column's section page, then the newest column it links. The column
+    covers Wednesday to Tuesday and appears Tuesday evening; the Tuesday run
+    rereads last week's (its Tuesday and ongoing rows), the Friday run reads
+    the new one.
+    """
+    links = parse_fw_column_index(fetch_text(source.url), base_url=source.url)
+    if not links:
+        raise ValueError("no 'What to do, where to go' column linked on the section page")
+    events: list[Event] = []
+    for link in links[:articles]:
+        time.sleep(source.crawl_delay_s)
+        events.extend(parse_fw_column_article(fetch_text(link), url=link, source_name=source.name))
+    return events
+
+
 def scrape_source(source: Source) -> tuple[list[Event], str | None]:
     try:
         if source.parser == "capecoral_revize":
@@ -341,6 +363,8 @@ def scrape_source(source: Source) -> tuple[list[Event], str | None]:
             events = [event for event in events if event.start_datetime <= horizon]
         elif source.parser == "breeze_community_feed":
             events = fetch_breeze_events(source)
+        elif source.parser == "fw_column":
+            events = fetch_fw_column_events(source)
         elif source.parser in PENDING_PARSERS:
             # Source is intentionally tracked in the civic source map, but the v0
             # request-based adapter either needs browser rendering, a discovered

@@ -47,6 +47,12 @@ class Source:
     # source IS. Kept small and obvious: a theatre stages theatre, a botanical
     # garden is a garden. Names must exist in vocabulary/interest_tags.yaml.
     implied_tags: tuple[str, ...] = ()
+    # Who chose this source's events, when a person did: set only where the
+    # listings are someone's picks rather than everything submitted. Every row
+    # gets the vocabulary's `curation.weight` and its rating_reason names the
+    # picker (Luis, 2026-10-18, on Florida Weekly's column: "those are curated
+    # events from a person. worth rating higher.").
+    curated_by: str | None = None
 
     def default_place(self):
         from .geo import Place
@@ -226,6 +232,33 @@ SOURCES: tuple[Source, ...] = (
         default_lat=26.6406,
         default_lon=-81.8723,
         robots_note="discovery.evvnt.com publishes no robots.txt (S3 AccessDenied); paged at 1 s.",
+    ),
+    Source(
+        # Added 2026-10-18. Luis: "I want that article read. those are curated
+        # events from a person. worth rating higher."
+        name="Florida Weekly — What to do, where to go",
+        url="https://www.floridaweekly.com/fort-myers/arts-entertainment/what-to-do-where-to-go/",
+        kind=SourceKind.AGGREGATOR,
+        parser="fw_column",
+        notes=(
+            "The weekly arts and entertainment column, BY FLORIDA WEEKLY STAFF, published Tuesday evening "
+            "for Wednesday to Tuesday: Top Picks, a heading per day, then Ongoing. Its listings are the "
+            "staff's choices, unlike the evvnt calendar above, so its rows carry curated_by. The adapter "
+            "reads the column's section page for the newest article headlined 'What to do, where to go', "
+            "then that article. On 2026-10-18 the 10/13 column gave 42 rows (32 dated listings, 9 ongoing "
+            "runs with stated dates, 1 top pick of its own); recurrences and runs with only an end date give "
+            "none."
+        ),
+        county="Lee",
+        default_lat=26.6406,
+        default_lon=-81.8723,
+        crawl_delay_s=70.0,
+        robots_note=(
+            "robots.txt (User-agent: *) disallows only /tncms/ service paths, /calendar/search/ and ad pages; "
+            "section and article pages are allowed. The site answers HTTP 429 above about one request a "
+            "minute (measured 2026-10-18: 70 s apart was served), so two requests 70 s apart."
+        ),
+        curated_by="Florida Weekly staff (the “What to do, where to go” column)",
     ),
     Source(
         name="Cape Coral Breeze Community Listings",

@@ -200,6 +200,7 @@ def cmd_rerate(args) -> int:
 
     version = load_vocabulary()["version"]
     implied = {s.name: s.implied_tags for s in SOURCES}
+    curated = {s.name: s.curated_by for s in SOURCES}
     state = L.fold(args.ledger)
     rows, changed = [], 0
     for cand in state.values():
@@ -217,6 +218,7 @@ def cmd_rerate(args) -> int:
             price_min=(cand.get("cost") or {}).get("price_min"),
             price_text=(cand.get("cost") or {}).get("price_text"),
             implied_tags=implied.get(cand.get("source_name"), ()),
+            curated_by=curated.get(cand.get("source_name")),
         )
         if (
             cand.get("interest_tags") == r.interest_tags

@@ -18,9 +18,18 @@
 # so alcohol-centred events are hard down-rated. That was found in the halo
 # and was absent from the lane's original brief.
 
-version: interest_tags.v1.6
+version: interest_tags.v1.7
 generated: 2026-09-09
 changelog:
+  - version: interest_tags.v1.7
+    at: 2026-10-18T01:00:00-04:00
+    why: >-
+      New `curation` block: a person's picks rate higher. Luis, 2026-10-18,
+      on Florida Weekly's weekly column "What to do, where to go": "I want
+      that article read. those are curated events from a person. worth rating
+      higher." A source that sets `curated_by` adds `curation.weight` to every
+      row and names the picker in rating_reason. No tag or cost changed, so
+      no existing row rescores.
   - version: interest_tags.v1.6
     at: 2026-09-10T10:12:00-04:00
     why: >-
@@ -407,6 +416,18 @@ tags:
     weight: 1.5
     evidence: 06_halos/people/johannah_music_fit_surface_2026-06-24.md
     match: '\b(dog.?friendly|pet.?friendly|yappy hour|paws|dog (walk|show|park)|pup)\b'
+
+# A person's picks. A source sets `curated_by` (sources.py) when its listings
+# are someone's choices rather than everything submitted; each of its rows
+# gets this weight on top of its tags, and rating_reason names the picker.
+# The hard costs below still floor the row: a pick does not outrank them.
+curation:
+  weight: 1.0
+  evidence: >-
+    Luis, 2026-10-18 (T3 thread 679236d6), on Florida Weekly's "What to do,
+    where to go": "I want that article read. those are curated events from a
+    person. worth rating higher." The weight is a first setting; his +/-1
+    feedback on picked rows is what tunes it.
 
 # Down-rating. Each cost subtracts from the rating; `hard` costs floor the row.
 costs:
