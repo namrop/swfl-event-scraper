@@ -88,7 +88,7 @@ SOURCES: tuple[Source, ...] = (
             "40eridani (496 occurrences, 127 titles, 09/09-10/03); ~115 of those titles "
             "appear in no other source, so Revize stays too. This adapter reads the grid "
             "HTML that lane saves rather than fetching: set SWFL_WEBTRAC_DUMP to the file. "
-            "Method and selectors: 20_digital_architecture/the_masthead/"
+            "Method and selectors: 18_oasis_estate/the_masthead/"
             "cape_coral_webtrac_recovery_2026-09-09.md. Grid is current-month only; weekly "
             "cadence is enough; schedule is the newspaper manager's call."
         ),
